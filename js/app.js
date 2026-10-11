@@ -1,7 +1,15 @@
 (function () {
   /* ------------------------------------------------------------------
      SHARING
-     Leave SYNC_URL empty and the list is saved in this browser only.
+     Easiest: keep the shared list in a Google Sheet. Follow the steps at the
+     top of google-sheet/Code.gs and paste the Web app URL here, e.g.
+       const SHEET_URL = 'https://script.google.com/macros/s/XXXX/exec';
+     ------------------------------------------------------------------ */
+  const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzJI0zK9Yj-GYXIoiVmXGW_6vsu44l2DRuuEcUodb7LLk2lh0PKaYJoxR4IgevU37vJOg/exec';
+
+  /* ------------------------------------------------------------------
+     Alternatively, Firebase.
+     Leave SYNC_URL (and SHEET_URL) empty and the list is saved in this browser only.
      To let everyone with the link see and edit the same list, create a free
      Firebase Realtime Database (console.firebase.google.com → Build →
      Realtime Database), set its rules to { "rules": { ".read": true, ".write": true } }
@@ -121,7 +129,84 @@
     };
   }
 
-  const store = SYNC_URL ? remoteStore() : localStore();
+  /* Google Sheet: small changes are queued and posted to the sheet's script, and the
+     whole list is re-read every few seconds so everyone sees each other's edits. */
+  function applyOp(s, op) {
+    if (op.t === 'put') s.items[op.id] = JSON.parse(JSON.stringify(op.it));
+    else if (op.t === 'patch') { if (s.items[op.id]) Object.assign(s.items[op.id], op.f); }
+    else if (op.t === 'del') delete s.items[op.id];
+    else if (op.t === 'meal') { if (op.name) s.meals[op.slot] = op.name; else delete s.meals[op.slot]; }
+  }
+
+  function sheetStore() {
+    const CACHE = 'weekend-food-sheet-cache';
+    try { const c = JSON.parse(localStorage.getItem(CACHE)); if (c) { items = c.items || {}; meals = c.meals || {}; } } catch (e) { /* ignore */ }
+    const pending = [];
+    let sending = false, last = '', flushTimer;
+    const cache = () => { try { localStorage.setItem(CACHE, JSON.stringify({ items, meals })); } catch (e) { /* ignore */ } };
+    const ok = () => setStatus('live', 'Live · shared via Google Sheets');
+    const fail = () => setStatus('err', 'Offline – will retry');
+    setStatus('', 'Connecting…');
+
+    // take the sheet's copy, then re-apply anything we've changed that it hasn't seen yet
+    function accept(s) {
+      const st = { items: (s && s.items) || {}, meals: (s && s.meals) || {} };
+      pending.forEach(op => applyOp(st, op));
+      const j = JSON.stringify(st);
+      if (j === last) return;
+      last = j;
+      items = st.items;
+      meals = st.meals;
+      cache();
+      render();
+    }
+    async function pull() {
+      if (sending || document.hidden) return;
+      try {
+        const r = await fetch(SHEET_URL, { cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        const s = await r.json();
+        if (!sending) accept(s);
+        ok();
+      } catch (e) { fail(); }
+    }
+    async function flush() {
+      clearTimeout(flushTimer);
+      if (sending || !pending.length) return;
+      sending = true;
+      const batch = pending.slice();
+      let sent = false;
+      try {
+        const r = await fetch(SHEET_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ops: batch }) });
+        if (!r.ok) throw new Error(r.status);
+        const s = await r.json();
+        pending.splice(0, batch.length);
+        sent = true;
+        accept(s);
+        ok();
+      } catch (e) { fail(); }
+      sending = false;
+      if (pending.length) flushTimer = setTimeout(flush, sent ? 0 : 4000);
+    }
+    function queue(op) {
+      applyOp({ items, meals }, op);
+      pending.push(op);
+      cache();
+      clearTimeout(flushTimer);
+      flushTimer = setTimeout(flush, 250);
+    }
+    pull();
+    setInterval(pull, 5000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) pull(); });
+    return {
+      put(id, it) { queue({ t: 'put', id, it }); },
+      patch(id, f) { queue({ t: 'patch', id, f }); },
+      del(id) { queue({ t: 'del', id }); },
+      setMeal(slot, name) { queue({ t: 'meal', slot, name }); }
+    };
+  }
+
+  const store = SHEET_URL ? sheetStore() : SYNC_URL ? remoteStore() : localStore();
 
   /* ---------------- selector (left) ---------------- */
   const q = $('#q'), results = $('#results'), addBtn = $('#add'), qty = $('#qty'), per = $('#per'), picker = $('#picker'), hint = $('#hint');
@@ -333,16 +418,17 @@
     let timer;
     const commit = () => {
       clearTimeout(timer);
+      delete input.dataset.dirty;
       const v = input.value.trim();
       if (v !== (meals[slot] || '')) { store.setMeal(slot, v); renderList(); }
     };
-    input.addEventListener('input', () => { sizeMeal(input); clearTimeout(timer); timer = setTimeout(commit, 600); });
+    input.addEventListener('input', () => { input.dataset.dirty = '1'; sizeMeal(input); clearTimeout(timer); timer = setTimeout(commit, 600); });
     input.addEventListener('blur', commit);
     input.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') input.blur(); });
   });
   function renderMeals() {
     board.querySelectorAll('.meal').forEach(input => {
-      if (document.activeElement === input) return; // don't overwrite while someone is typing
+      if (document.activeElement === input || input.dataset.dirty) return; // don't overwrite unsaved typing
       const v = meals[input.closest('.zone').dataset.slot] || '';
       if (input.value !== v) { input.value = v; sizeMeal(input); }
     });
