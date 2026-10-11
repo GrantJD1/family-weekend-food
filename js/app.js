@@ -160,8 +160,9 @@
       cache();
       render();
     }
-    async function pull() {
-      if (sending || document.hidden) return;
+    // background refreshes pause while the page is hidden; the first load always fetches
+    async function pull(first) {
+      if (sending || (document.hidden && first !== true)) return;
       try {
         const r = await fetch(SHEET_URL, { cache: 'no-store' });
         if (!r.ok) throw new Error(r.status);
@@ -195,7 +196,7 @@
       clearTimeout(flushTimer);
       flushTimer = setTimeout(flush, 250);
     }
-    pull();
+    pull(true);
     setInterval(pull, 5000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) pull(); });
     return {
