@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Weekend Food</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f5f7; --card:#ffffff; --ink:#1d1d1f; --ink2:#6e6e73; --ink3:#a1a1a6;
+  --line:rgba(0,0,0,.08); --dash:#c7c7cc; --fill:#f2f2f4;
+  --blue:#0071e3; --blue-soft:rgba(0,113,227,.08); --green:#28a745; --green-soft:rgba(40,167,69,.10);
+  --radius:20px; --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 28px rgba(0,0,0,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Helvetica Neue","Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+img{display:block}
+
+.app{display:grid;grid-template-columns:330px minmax(0,1fr) 350px;gap:18px;padding:18px;height:100vh;height:100dvh}
+.pane{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;overflow:auto;min-height:0;scrollbar-width:thin}
+
+/* ---------- left: selector ---------- */
+.left{display:flex;flex-direction:column;gap:18px;overflow:visible}
+.search{position:relative}
+.search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:17px;height:17px;stroke:var(--ink3)}
+.search input{width:100%;height:46px;border-radius:14px;border:1px solid transparent;background:var(--fill);padding:0 40px 0 40px;outline:none;transition:.15s}
+.search input:focus{background:#fff;border-color:var(--blue);box-shadow:0 0 0 4px var(--blue-soft)}
+.search input::placeholder{color:var(--ink3)}
+#clearQ{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border-radius:50%;background:#d1d1d6;color:#fff;font-size:15px;line-height:24px}
+.results{position:absolute;z-index:30;left:0;right:0;top:54px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.14),0 0 0 1px var(--line);padding:6px;max-height:420px;overflow:auto}
+.res{display:flex;align-items:center;gap:12px;padding:6px 10px;border-radius:11px;cursor:pointer}
+.res img{width:38px;height:38px;flex:none}
+.res .t{flex:1;min-width:0}
+.res .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res .c{font-size:12px;color:var(--ink2)}
+.res.on{background:var(--blue-soft)}
+.res mark{background:none;color:var(--blue);font-weight:600}
+.res.custom .n{color:var(--blue)}
+
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+
+.picker{background:#fff;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px;
+  box-shadow:0 0 0 1px var(--line),0 10px 30px rgba(0,0,0,.08);animation:drop .3s cubic-bezier(.2,.9,.3,1.15)}
+.picker[hidden],.hint[hidden]{display:none}
+.picker-h{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+.picker-h img{width:72px;height:72px;flex:none;animation:pop .45s cubic-bezier(.2,.9,.3,1.3)}
+.picker-t{flex:1;min-width:0}
+.picker-name{font-size:18px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.picker-cat{font-size:13px;color:var(--ink2);margin-top:2px}
+.picker-x{align-self:flex-start;width:28px;height:28px;flex:none;border-radius:50%;background:var(--fill);color:var(--ink2);font-size:17px;line-height:28px}
+.picker-x:hover{background:#e5e5ea}
+.lbl{font-size:12px;font-weight:500;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;padding-left:2px;margin-top:4px}
+.picker .qty-row{gap:8px}
+.picker .seg.small{flex:1;min-width:126px}
+.picker .seg.small button{height:36px;padding:0 6px}
+.picker .primary{margin-top:6px}
+.hint{display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 0 8px;color:var(--ink3);font-size:14px}
+.hint img{width:120px;height:120px;opacity:.35;filter:grayscale(1)}
+.hint p{margin:10px 0 0}
+
+.field label{display:block;font-size:12px;font-weight:500;color:var(--ink2);margin:0 0 8px 2px;text-transform:uppercase;letter-spacing:.04em}
+.seg{display:flex;background:var(--fill);border-radius:12px;padding:3px;gap:2px}
+.seg button{flex:1;height:36px;border-radius:9px;font-weight:500;color:var(--ink2);transition:.15s}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg.small button{height:28px;font-size:13px;padding:0 12px}
+
+.qty-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stepper{display:flex;align-items:center;background:var(--fill);border-radius:12px;padding:3px}
+.stepper button{width:36px;height:36px;border-radius:9px;font-size:20px;color:var(--ink2)}
+.stepper button:hover{background:#fff}
+.stepper input{width:38px;text-align:center;border:0;background:none;font-weight:600;font-size:16px;outline:none;-moz-appearance:textfield}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.per{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3)}
+.per[hidden],.qwidget[hidden]{display:none}
+
+.qwidget{background:var(--fill);border-radius:16px;padding:12px 12px 14px;display:flex;flex-direction:column;gap:10px;animation:drop .28s cubic-bezier(.2,.9,.3,1.15)}
+@keyframes drop{from{opacity:0;transform:translateY(-8px) scale(.97)}}
+.qw-h{font-size:12px;font-weight:500;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;padding-left:2px}
+.qwidget .stepper{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.qwidget .stepper button:hover{background:var(--fill)}
+.qwidget .seg{flex:1;min-width:150px;background:#e5e5ea}
+.qwidget .seg button{height:36px}
+.per input{width:46px;height:36px;border-radius:10px;border:1px dashed var(--dash);background:#fff;text-align:center;outline:none}
+.per input:focus{border-style:solid;border-color:var(--blue)}
+
+.primary{height:50px;border-radius:14px;background:var(--blue);color:#fff;font-weight:600;font-size:16px;transition:.15s}
+.primary:hover{background:#0077ed}
+.primary:active{transform:scale(.98)}
+.primary:disabled{background:#d2d2d7;cursor:default;transform:none}
+.foot{margin-top:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ink3)}
+.dot.live{background:#34c759;box-shadow:0 0 0 3px rgba(52,199,89,.18)}
+.dot.err{background:#ff9f0a}
+
+/* ---------- middle: schedule ---------- */
+.mid{display:flex;flex-direction:column;gap:12px}
+.zone{border:1.5px dashed var(--dash);border-radius:16px;padding:12px 14px 14px;transition:background .15s,border-color .15s;flex:1 0 auto;min-height:96px;display:flex;flex-direction:column}
+.zone-h{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:13px;color:var(--ink2);min-height:26px}
+.zone-h span{font-weight:600;color:var(--ink)}
+.zone-h small{margin-left:auto;color:var(--ink3);font-size:12px}
+/* meal name pill, top right of each meal box */
+.meal{margin-left:auto;flex:none;width:96px;max-width:62%;height:26px;padding:0 10px;border-radius:13px;outline:none;
+  border:1px solid transparent;background:var(--blue-soft);color:var(--blue);font-size:12.5px;font-weight:600;letter-spacing:0;
+  text-overflow:ellipsis;transition:background .15s,border-color .15s,box-shadow .15s}
+.meal:placeholder-shown{background:transparent;border:1px dashed var(--dash)}
+.meal::placeholder{color:var(--ink3);font-weight:500}
+.meal:hover{border-color:var(--blue)}
+.meal:focus{background:#fff;border:1px solid var(--blue);box-shadow:0 0 0 3px var(--blue-soft);color:var(--ink)}
+.pop .slots button small{display:block;font-size:11px;opacity:.75;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zone.tray{border-style:solid;border-color:transparent;background:var(--fill);flex:0 0 auto;min-height:84px}
+.zone.hot{border-color:var(--blue);border-style:dashed;background:var(--blue-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;flex:1;align-content:flex-start;min-height:42px}
+.chips:empty::after{content:attr(data-empty);color:var(--ink3);font-size:13px;align-self:center;padding-left:2px}
+
+.chip{display:flex;align-items:center;gap:8px;height:42px;padding:0 12px 0 5px;background:#fff;border-radius:21px;
+  box-shadow:0 0 0 1px var(--line),0 2px 6px rgba(0,0,0,.05);cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;
+  animation:chipIn .3s cubic-bezier(.2,.9,.3,1.2);max-width:100%}
+@keyframes chipIn{from{transform:scale(.7);opacity:0}}
+.chip img{width:34px;height:34px;flex:none;pointer-events:none}
+.chip .n{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip .q{font-size:12px;color:var(--ink2);background:var(--fill);border-radius:8px;padding:1px 6px;white-space:nowrap}
+.chip .m{width:7px;height:7px;border-radius:50%;flex:none;background:var(--blue)}
+.chip .m.bring{background:var(--green)}
+.chip.lift{opacity:.3}
+.ghost-chip{position:fixed;z-index:100;pointer-events:none;transform:rotate(-3deg) scale(1.06);box-shadow:0 14px 34px rgba(0,0,0,.2);opacity:.96;animation:none}
+
+/* ---------- right: shopping list ---------- */
+.right-h{display:flex;align-items:center;gap:10px;margin-bottom:6px;position:sticky;top:-20px;background:var(--card);padding:6px 0 10px;z-index:2}
+.right-h .seg{flex:1}
+.ghost{height:34px;padding:0 12px;border-radius:10px;color:var(--blue);font-weight:500;font-size:14px}
+.ghost:hover{background:var(--blue-soft)}
+.aisle{margin-top:14px}
+.aisle-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);padding:0 2px 6px;border-bottom:1px solid var(--line)}
+.aisle-h i{width:9px;height:9px;border-radius:3px;flex:none}
+.aisle-h em{margin-left:auto;font-style:normal;font-weight:500;color:var(--ink3)}
+.row{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.row:last-child{border-bottom:0}
+.row img{width:30px;height:30px;flex:none}
+.row .n{flex:1;min-width:0;font-size:14px}
+.row .n small{display:block;font-size:11px;color:var(--ink3)}
+.row .q{font-size:13px;color:var(--ink2);white-space:nowrap}
+.tick{width:22px;height:22px;border-radius:50%;border:1.5px solid #c7c7cc;flex:none;display:grid;place-items:center;transition:.15s}
+.row.done .tick{background:#34c759;border-color:#34c759}
+.row.done .tick::after{content:"";width:6px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:translate(0,-1px) rotate(45deg)}
+.row.done .n,.row.done .q{color:var(--ink3);text-decoration:line-through}
+.row.done img{opacity:.45}
+.tag{font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--green);background:var(--green-soft);border-radius:6px;padding:2px 6px}
+.empty-list{color:var(--ink3);text-align:center;padding:60px 10px;font-size:14px}
+
+/* ---------- popover ---------- */
+.pop{position:fixed;z-index:60;width:260px;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:18px;
+  box-shadow:0 20px 50px rgba(0,0,0,.18),0 0 0 1px var(--line);padding:14px;display:flex;flex-direction:column;gap:12px;animation:pop .2s ease-out}
+.pop-h{display:flex;align-items:center;gap:10px;font-weight:600}
+.pop-h img{width:44px;height:44px}
+.pop .slots{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pop .slots button{font-size:12px;padding:8px 6px;border-radius:10px;background:var(--fill);color:var(--ink2);text-align:left;line-height:1.2}
+.pop .slots button.on{background:var(--blue);color:#fff}
+.pop .danger{color:#ff3b30;font-size:14px;font-weight:500;height:36px;border-radius:10px}
+.pop .danger:hover{background:rgba(255,59,48,.08)}
+.scrim{position:fixed;inset:0;z-index:55}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:rgba(29,29,31,.92);color:#fff;font-size:14px;padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;pointer-events:none;z-index:90}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:1180px){.app{grid-template-columns:300px minmax(0,1fr) 310px;gap:14px;padding:14px}}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr);height:auto;padding:12px 16px 40px}
+  .pane{overflow:visible;padding:16px}
+  .left .foot{margin-top:0}
+  .preview-art,.preview-art img{width:110px;height:110px}
+  .right-h{top:0}
+}
+</style>
+</head>
+<body>
+<main class="app">
+
+  <section class="pane left">
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="text" placeholder="Search foods" autocomplete="off" spellcheck="false" aria-label="Search foods">
+      <button id="clearQ" hidden aria-label="Clear">×</button>
+      <div id="results" class="results" hidden></div>
+    </div>
+
+    <!-- appears as soon as a food is picked from the search -->
+    <div id="picker" class="picker" hidden>
+      <div class="picker-h">
+        <img id="pvImg" alt="">
+        <div class="picker-t"><div class="picker-name" id="pvName"></div><div class="picker-cat" id="pvCat"></div></div>
+        <button id="pickClose" class="picker-x" aria-label="Close">×</button>
+      </div>
+      <div class="lbl">How many?</div>
+      <div class="qty-row">
+        <div class="stepper">
+          <button data-d="-1" aria-label="Fewer">−</button>
+          <input id="qty" type="number" min="1" max="99" value="1" inputmode="numeric" aria-label="Quantity">
+          <button data-d="1" aria-label="More">+</button>
+        </div>
+        <div class="seg small" id="unitSeg">
+          <button data-v="n" class="on">Number</button>
+          <button data-v="pk">Packets</button>
+        </div>
+      </div>
+      <div class="per" id="perRow" hidden>
+        <input id="per" type="number" min="1" placeholder="–" inputmode="numeric" aria-label="Number in each packet">
+        <span>in each packet · optional</span>
+      </div>
+      <div class="lbl">Get it by</div>
+      <div class="seg" id="mode">
+        <button data-v="buy" class="on">Buying</button>
+        <button data-v="bring">Bringing</button>
+      </div>
+      <button id="add" class="primary">Add</button>
+    </div>
+
+    <div id="hint" class="hint">
+      <img id="hintImg" alt="">
+      <p>Search for a food and tap it<br>to choose how many.</p>
+    </div>
+
+    <div class="foot"><span class="dot" id="syncDot"></span><span id="syncText">Saved on this device</span></div>
+  </section>
+
+  <section class="pane mid" id="board">
+    <div class="zone tray" data-slot="pool">
+      <div class="zone-h"><span>Added</span><small>Drag onto a meal</small></div>
+      <div class="chips" data-empty="New items land here"></div>
+    </div>
+    <div class="zone" data-slot="fe"><div class="zone-h"><span>Friday</span>Evening</div><div class="chips" data-empty="Drop food here"></div></div>
+    <div class="zone" data-slot="sm"><div class="zone-h"><span>Saturday</span>Morning</div><div class="chips" data-empty="Drop food here"></div></div>
+    <div class="zone" data-slot="sl"><div class="zone-h"><span>Saturday</span>Lunch</div><div class="chips" data-empty="Drop food here"></div></div>
+    <div class="zone" data-slot="se"><div class="zone-h"><span>Saturday</span>Evening</div><div class="chips" data-empty="Drop food here"></div></div>
+    <div class="zone" data-slot="sb"><div class="zone-h"><span>Sunday</span>Breakfast</div><div class="chips" data-empty="Drop food here"></div></div>
+  </section>
+
+  <section class="pane right">
+    <div class="right-h">
+      <div class="seg small" id="filter">
+        <button data-v="all" class="on">All</button>
+        <button data-v="buy">To buy</button>
+        <button data-v="bring">To bring</button>
+      </div>
+      <button id="copy" class="ghost" title="Copy list to clipboard">Copy</button>
+    </div>
+    <div id="list"></div>
+  </section>
+
+</main>
+
+<div id="toast" class="toast"></div>
+
+<!-- bump ?v= when the scripts change so browsers don't keep an old copy -->
+<script src="js/icons.js?v=5"></script>
+<script src="js/foods.js?v=5"></script>
+<script src="js/foods2.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
+</body>
+</html>
