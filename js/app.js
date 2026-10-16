@@ -16,6 +16,9 @@
   const WHO_MEALS = ['Breakfast', 'Lunch', 'Dinner'];
   const WHO_PEOPLE = [['Dad', 'Rita', 'Rob', 'Faye', 'Emilia', 'Anwen', 'Benji'], ['Hannah', 'Mowgli', 'James', 'Sophie', 'Marie', 'Nick', 'Chris', 'Nicky']];
   const WHO_DEFAULT = { 'Breakfast|fri': 'No', 'Lunch|fri': 'No' }; // everything else starts as Yes
+  // who can be picked when something is being brought
+  const BRINGERS = ['Rob', 'Chris', 'Hannah', 'Marie', 'James'];
+  const BRING_COL = ['#3f88c5', '#e4572e', '#2a9d8f', '#e86a92', '#7b5ea7'];
   const PASTRY = /puff pastry/i;
   const SLOT_NAME = Object.fromEntries(SLOTS);
   const CAT = Object.fromEntries(CATS.map(c => [c.k, c]));
@@ -162,7 +165,7 @@
   /* ---------------- selector (left) ---------------- */
   const q = $('#q'), results = $('#results'), addBtn = $('#add'), qty = $('#qty'), per = $('#per'), picker = $('#picker'), hint = $('#hint');
   const FOODS_L = FOODS.map(f => ({ f, k: f.n.toLowerCase() }));
-  let selected = null, hits = [], cursor = 0, mode = 'buy', unit = 'n';
+  let selected = null, hits = [], cursor = 0, mode = 'buy', unit = 'n', bringer = '';
 
   function guessCat(name) {
     const s = name.toLowerCase();
@@ -281,7 +284,24 @@
       cb(b.dataset.v);
     });
   }
-  segmented($('#mode'), v => { mode = v; });
+  // choosing "Bringing" asks who is bringing it
+  function setMode(v) {
+    mode = v;
+    $('#mode').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    $('#bringBy').hidden = v !== 'bring';
+    $('#bringWho').textContent = bringer;
+  }
+  async function askBringer() {
+    const who = await chooseBringer(selected, bringer);
+    if (who) { bringer = who; setMode('bring'); }
+    else if (!(mode === 'bring' && bringer)) setMode('buy');
+  }
+  $('#mode').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.v === 'bring') askBringer(); else setMode('buy');
+  });
+  $('#bringChange').addEventListener('click', askBringer);
 
   const clampQty = v => Math.max(1, Math.min(99, parseInt(v, 10) || 1));
   function setQty(v) { qty.value = clampQty(v); }
@@ -304,9 +324,9 @@
     const p = parseInt(per.value, 10);
     store.put(uid(), {
       n: f.n, cat: f.cat, s: f.s, c: (f.c || []).map(v => v || '').join(','),
-      m: mode, q: clampQty(qty.value), u: unit, p: unit === 'pk' && p > 0 ? p : 0, slot: 'pool', done: false, t: Date.now()
+      m: mode, by: mode === 'bring' ? bringer : '', q: clampQty(qty.value), u: unit, p: unit === 'pk' && p > 0 ? p : 0, slot: 'pool', done: false, t: Date.now()
     });
-    toast(`${f.n} added`);
+    toast(mode === 'bring' ? `${f.n} added – ${bringer} is bringing it` : `${f.n} added`);
     if (PASTRY.test(f.n)) pastryParty();
     q.value = '';
     $('#clearQ').hidden = true;
@@ -324,7 +344,10 @@
 
   function chipHTML(it) {
     const qt = qtyText(it);
-    return `<img src="${icon(it)}" alt=""><span class="n">${esc(it.n)}</span>${qt ? `<span class="q">${qt}</span>` : ''}<span class="m ${it.m}" title="${it.m === 'bring' ? 'Bringing' : 'Buying'}"></span>`;
+    const dot = it.m !== 'bring' ? '<span class="m buy" title="Buying"></span>'
+      : it.by ? `<span class="m bring by" title="${esc(it.by)} is bringing this">${esc(it.by[0])}</span>`
+      : '<span class="m bring" title="Bringing – tap to choose who"></span>';
+    return `<img src="${icon(it)}" alt=""><span class="n">${esc(it.n)}</span>${qt ? `<span class="q">${qt}</span>` : ''}${dot}`;
   }
 
   function renderBoard() {
@@ -470,6 +493,7 @@
     pop.innerHTML = `
       <div class="pop-h"><img src="${icon(it)}" alt=""><div>${esc(it.n)}<div style="font-weight:400;font-size:12px;color:var(--ink2)">${esc(CAT[it.cat]?.n || '')}</div></div></div>
       <div class="seg pop-mode"><button data-v="buy" class="${it.m === 'buy' ? 'on' : ''}">Buying</button><button data-v="bring" class="${it.m === 'bring' ? 'on' : ''}">Bringing</button></div>
+      <div class="bring-by pop-by"${it.m === 'bring' ? '' : ' hidden'}>Brought by <b>${esc(it.by || 'nobody yet')}</b> · <button type="button" class="link">Change</button></div>
       <div class="qwidget">
         <div class="qty-row"><div class="stepper"><button data-d="-1">−</button><input type="number" min="1" max="99" value="${it.q}"><button data-d="1">+</button></div>
           <div class="seg small pop-unit"><button data-v="n" class="${isNum(it) ? 'on' : ''}">Number</button><button data-v="pk" class="${isNum(it) ? '' : 'on'}">Packets</button></div></div>
@@ -486,7 +510,26 @@
 
     const [qIn, pIn] = pop.querySelectorAll('input');
     const save = f => { store.patch(id, f); render(); };
-    segmented(pop.querySelector('.pop-mode'), v => save({ m: v }));
+    const popMode = pop.querySelector('.pop-mode'), popBy = pop.querySelector('.pop-by');
+    const paintMode = () => {
+      const cur = items[id] || it;
+      popMode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === cur.m));
+      popBy.hidden = cur.m !== 'bring';
+      popBy.querySelector('b').textContent = cur.by || 'nobody yet';
+    };
+    const askPopBringer = async () => {
+      const cur = items[id] || it;
+      const who = await chooseBringer(cur, cur.by);
+      if (who) save({ m: 'bring', by: who });
+      paintMode();
+    };
+    popMode.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.v === 'bring') askPopBringer();
+      else { save({ m: 'buy', by: '' }); paintMode(); }
+    });
+    popBy.querySelector('.link').addEventListener('click', askPopBringer);
     segmented(pop.querySelector('.pop-unit'), v => {
       pop.querySelector('.per').hidden = v !== 'pk';
       save(v === 'pk' ? { u: v } : { u: v, p: 0 });
@@ -524,16 +567,25 @@
     const rows = {};
     for (const [id, it] of Object.entries(items)) {
       if (filter !== 'all' && it.m !== filter) continue;
-      const key = it.n.toLowerCase() + '|' + it.m;
-      const r = rows[key] ||= { n: it.n, cat: CAT[it.cat] ? it.cat : 'cu', s: it.s, c: it.c, m: it.m, ids: [], num: 0, pk: 0, pers: new Set(), slots: [], done: true };
+      const by = it.m === 'bring' ? it.by || '' : '';
+      const key = it.n.toLowerCase() + '|' + it.m + '|' + by;
+      const r = rows[key] ||= { n: it.n, cat: CAT[it.cat] ? it.cat : 'cu', s: it.s, c: it.c, m: it.m, by, ids: [], num: 0, pk: 0, pers: new Set(), slots: [], done: true };
       r.ids.push(id);
       if (isNum(it)) r.num += +it.q || 1;
       else { r.pk += +it.q || 1; r.pers.add(it.p || 0); }
       if (it.slot !== 'pool' && SLOT_NAME[it.slot] && !r.slots.includes(it.slot)) r.slots.push(it.slot);
       r.done = r.done && !!it.done;
     }
+    const list = Object.values(rows).sort((a, b) => a.n.localeCompare(b.n));
+    // "To bring" is a separate list per person, so everyone can see what they need to bring
+    if (filter === 'bring') {
+      const out = BRINGERS.map((p, i) => ({ cat: { n: p, c: BRING_COL[i] }, person: true, rows: list.filter(r => r.by === p) }));
+      const loose = list.filter(r => !BRINGERS.includes(r.by));
+      if (loose.length) out.push({ cat: { n: 'Not assigned yet – tap the item to choose', c: '#c7c7cc' }, person: true, loose: true, rows: loose });
+      return out;
+    }
     const out = CATS.map(c => ({ cat: c, rows: [] }));
-    Object.values(rows).sort((a, b) => a.n.localeCompare(b.n)).forEach(r => out.find(g => g.cat.k === r.cat).rows.push(r));
+    list.forEach(r => out.find(g => g.cat.k === r.cat).rows.push(r));
     return out.filter(g => g.rows.length);
   }
   const rowQty = r => {
@@ -558,12 +610,13 @@
       return;
     }
     $('#list').innerHTML = gs.map(g => `
-      <div class="aisle"><div class="aisle-h"><i style="background:${g.cat.c}"></i>${esc(g.cat.n)}<em>${g.rows.length}</em></div>
+      <div class="aisle${g.person ? ' person' : ''}"><div class="aisle-h"><i style="background:${g.cat.c}"></i>${esc(g.cat.n)}${g.person && !g.loose ? ' brings' : ''}<em>${g.rows.length}</em></div>
+      ${g.rows.length ? '' : '<div class="nothing">Nothing to bring yet</div>'}
       ${g.rows.map(r => {
         const i = listRows.push(r) - 1;
         return `<div class="row${r.done ? ' done' : ''}" data-r="${i}"><span class="tick"></span><img src="${icon(r)}" alt="">
           <div class="n">${esc(r.n)}<small>${esc(rowWhen(r))}</small></div>
-          ${filter === 'all' && r.m === 'bring' ? '<span class="tag">Bring</span>' : ''}<span class="q">${rowQty(r)}</span></div>`;
+          ${filter === 'all' && r.m === 'bring' ? `<span class="tag">${esc(r.by || 'Bring')}</span>` : ''}<span class="q">${rowQty(r)}</span></div>`;
       }).join('')}</div>`).join('');
   }
   $('#list').addEventListener('click', e => {
@@ -582,8 +635,9 @@
     const menu = SLOTS.filter(([k]) => meals[k]).map(([k, n]) => `${n}: ${meals[k]}`);
     if (menu.length) lines.push('MENU', ...menu, '');
     gs.forEach(g => {
-      lines.push(g.cat.n.toUpperCase());
-      g.rows.forEach(r => lines.push(`${r.done ? '✓' : '○'} ${r.n} — ${rowQty(r)}${filter === 'all' && r.m === 'bring' ? ' (bringing)' : ''}`));
+      lines.push(g.loose ? 'NOT ASSIGNED YET' : g.person ? `${g.cat.n.toUpperCase()} BRINGS` : g.cat.n.toUpperCase());
+      if (!g.rows.length) lines.push('(nothing yet)');
+      g.rows.forEach(r => lines.push(`${r.done ? '✓' : '○'} ${r.n} — ${rowQty(r)}${filter === 'all' && r.m === 'bring' ? ` (${r.by ? r.by + ' bringing' : 'bringing'})` : ''}`));
       lines.push('');
     });
     const text = lines.join('\n').trim();
@@ -627,6 +681,35 @@
     const totals = DAYS.map(([d]) => people.filter(p => whoVal(`${p}|${d}`) === 'Yes').length);
     DAYS.forEach(([d], i) => { $('#tot-' + d).textContent = totals[i]; });
     $('#whoCount').textContent = `${Math.max(...totals)} of ${people.length} coming`;
+  }
+
+  /* ---------------- "who's bringing it?" chooser ----------------
+     Opens over the page when something is set to Bringing; resolves with a name, or null if cancelled. */
+  function chooseBringer(food, current) {
+    return new Promise(resolve => {
+      const sheet = document.createElement('div');
+      sheet.className = 'bring-sheet';
+      sheet.innerHTML = `<div class="bs-card" role="dialog" aria-modal="true" aria-label="Who's bringing it?">
+        <div class="bs-h">${food ? `<img src="${icon(food)}" alt="">` : ''}<div><div class="bs-title">Who's bringing it?</div><div class="bs-sub">${esc(food ? food.n : '')}</div></div></div>
+        <div class="bs-people">${BRINGERS.map((p, i) =>
+          `<button type="button" data-p="${p}" class="${p === current ? 'on' : ''}"><i style="background:${BRING_COL[i]}">${p[0]}</i>${p}</button>`).join('')}</div>
+        <button type="button" class="bs-cancel">Cancel</button></div>`;
+      document.body.appendChild(sheet);
+      const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); finish(null); } };
+      const finish = v => {
+        document.removeEventListener('keydown', onKey, true);
+        sheet.classList.add('out');
+        setTimeout(() => sheet.remove(), 180);
+        resolve(v);
+      };
+      document.addEventListener('keydown', onKey, true);
+      sheet.addEventListener('click', e => {
+        const b = e.target.closest('button[data-p]');
+        if (b) finish(b.dataset.p);
+        else if (e.target.closest('.bs-cancel') || e.target === sheet) finish(null);
+      });
+      (sheet.querySelector('button.on') || sheet.querySelector('button[data-p]')).focus({ preventScroll: true });
+    });
   }
 
   /* ---------------- puff pastry alert ----------------
