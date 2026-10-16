@@ -22,7 +22,8 @@ button,input{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}
 img{display:block}
 
-.app{display:grid;grid-template-columns:330px minmax(0,1fr) 350px;gap:18px;padding:18px;height:100vh;height:100dvh}
+/* four columns; on narrower screens the page scrolls sideways (scrollbar along the bottom) */
+.app{display:grid;grid-template-columns:300px minmax(470px,1fr) 310px 300px;gap:18px;padding:18px;height:100vh;height:100dvh;overflow-x:auto}
 .pane{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;overflow:auto;min-height:0;scrollbar-width:thin}
 
 /* ---------- left: selector ---------- */
@@ -46,7 +47,7 @@ img{display:block}
 
 @keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
 
-.picker{background:#fff;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px;
+.picker{background:#fff;border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:10px;
   box-shadow:0 0 0 1px var(--line),0 10px 30px rgba(0,0,0,.08);animation:drop .3s cubic-bezier(.2,.9,.3,1.15)}
 .picker[hidden],.hint[hidden]{display:none}
 .picker-h{display:flex;align-items:center;gap:12px;margin-bottom:2px}
@@ -58,7 +59,8 @@ img{display:block}
 .picker-x:hover{background:#e5e5ea}
 .lbl{font-size:12px;font-weight:500;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;padding-left:2px;margin-top:4px}
 .picker .qty-row{gap:8px}
-.picker .seg.small{flex:1;min-width:126px}
+.picker .stepper button{width:32px}
+.picker .seg.small{flex:1;min-width:110px}
 .picker .seg.small button{height:36px;padding:0 6px}
 .picker .primary{margin-top:6px}
 .hint{display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 0 8px;color:var(--ink3);font-size:14px}
@@ -100,9 +102,10 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .dot.err{background:#ff9f0a}
 
 /* ---------- middle: schedule ---------- */
-.mid{display:flex;flex-direction:column;gap:12px}
-.zone{border:1.5px dashed var(--dash);border-radius:16px;padding:12px 14px 14px;transition:background .15s,border-color .15s;flex:1 0 auto;min-height:96px;display:flex;flex-direction:column}
-.zone-h{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:13px;color:var(--ink2);min-height:26px}
+.mid{display:flex;flex-direction:column;gap:10px}
+.zone{border:1.5px dashed var(--dash);border-radius:14px;padding:10px 12px 12px;transition:background .15s,border-color .15s;flex:1 0 auto;min-height:76px;display:flex;flex-direction:column}
+.zone.extra{min-height:68px}
+.zone-h{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:13px;color:var(--ink2);min-height:26px}
 .zone-h span{font-weight:600;color:var(--ink)}
 .zone-h small{margin-left:auto;color:var(--ink3);font-size:12px}
 /* meal name pill, top right of each meal box */
@@ -116,17 +119,18 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .pop .slots button small{display:block;font-size:11px;opacity:.75;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .zone.tray{border-style:solid;border-color:transparent;background:var(--fill);flex:0 0 auto;min-height:84px}
 .zone.hot{border-color:var(--blue);border-style:dashed;background:var(--blue-soft)}
-.chips{display:flex;flex-wrap:wrap;gap:8px;flex:1;align-content:flex-start;min-height:42px}
-.chips:empty::after{content:attr(data-empty);color:var(--ink3);font-size:13px;align-self:center;padding-left:2px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;flex:1;align-content:flex-start;min-height:30px}
+.chips:empty::after{content:attr(data-empty);color:var(--ink3);font-size:12.5px;align-self:center;padding-left:2px}
 
-.chip{display:flex;align-items:center;gap:8px;height:42px;padding:0 12px 0 5px;background:#fff;border-radius:21px;
-  box-shadow:0 0 0 1px var(--line),0 2px 6px rgba(0,0,0,.05);cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;
+/* compact food chips so a long list (100+) still fits on screen */
+.chip{display:flex;align-items:center;gap:4px;height:26px;padding:0 8px 0 3px;background:#fff;border-radius:13px;
+  box-shadow:0 0 0 1px var(--line),0 1px 3px rgba(0,0,0,.05);cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;
   animation:chipIn .3s cubic-bezier(.2,.9,.3,1.2);max-width:100%}
 @keyframes chipIn{from{transform:scale(.7);opacity:0}}
-.chip img{width:34px;height:34px;flex:none;pointer-events:none}
-.chip .n{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.chip .q{font-size:12px;color:var(--ink2);background:var(--fill);border-radius:8px;padding:1px 6px;white-space:nowrap}
-.chip .m{width:7px;height:7px;border-radius:50%;flex:none;background:var(--blue)}
+.chip img{width:20px;height:20px;flex:none;pointer-events:none}
+.chip .n{font-size:12px;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip .q{font-size:10px;color:var(--ink2);background:var(--fill);border-radius:6px;padding:0 4px;white-space:nowrap}
+.chip .m{width:6px;height:6px;border-radius:50%;flex:none;background:var(--blue)}
 .chip .m.bring{background:var(--green)}
 .chip.lift{opacity:.3}
 .ghost-chip{position:fixed;z-index:100;pointer-events:none;transform:rotate(-3deg) scale(1.06);box-shadow:0 14px 34px rgba(0,0,0,.2);opacity:.96;animation:none}
@@ -136,19 +140,19 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .right-h .seg{flex:1}
 .ghost{height:34px;padding:0 12px;border-radius:10px;color:var(--blue);font-weight:500;font-size:14px}
 .ghost:hover{background:var(--blue-soft)}
-.aisle{margin-top:14px}
-.aisle-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);padding:0 2px 6px;border-bottom:1px solid var(--line)}
-.aisle-h i{width:9px;height:9px;border-radius:3px;flex:none}
+.aisle{margin-top:10px}
+.aisle-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);padding:0 2px 5px;border-bottom:1px solid var(--line)}
+.aisle-h i{width:8px;height:8px;border-radius:3px;flex:none}
 .aisle-h em{margin-left:auto;font-style:normal;font-weight:500;color:var(--ink3)}
-.row{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.row{display:flex;align-items:center;gap:8px;padding:4px 2px;border-bottom:1px solid var(--line);cursor:pointer}
 .row:last-child{border-bottom:0}
-.row img{width:30px;height:30px;flex:none}
-.row .n{flex:1;min-width:0;font-size:14px}
-.row .n small{display:block;font-size:11px;color:var(--ink3)}
-.row .q{font-size:13px;color:var(--ink2);white-space:nowrap}
-.tick{width:22px;height:22px;border-radius:50%;border:1.5px solid #c7c7cc;flex:none;display:grid;place-items:center;transition:.15s}
+.row img{width:24px;height:24px;flex:none}
+.row .n{flex:1;min-width:0;font-size:13px;line-height:1.25}
+.row .n small{display:block;font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .q{font-size:12px;color:var(--ink2);white-space:nowrap}
+.tick{width:18px;height:18px;border-radius:50%;border:1.5px solid #c7c7cc;flex:none;display:grid;place-items:center;transition:.15s}
 .row.done .tick{background:#34c759;border-color:#34c759}
-.row.done .tick::after{content:"";width:6px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:translate(0,-1px) rotate(45deg)}
+.row.done .tick::after{content:"";width:5px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:translate(0,-1px) rotate(45deg)}
 .row.done .n,.row.done .q{color:var(--ink3);text-decoration:line-through}
 .row.done img{opacity:.45}
 .tag{font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--green);background:var(--green-soft);border-radius:6px;padding:2px 6px}
@@ -169,20 +173,92 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:rgba(29,29,31,.92);color:#fff;font-size:14px;padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;pointer-events:none;z-index:90}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
-@media (max-width:1180px){.app{grid-template-columns:300px minmax(0,1fr) 310px;gap:14px;padding:14px}}
+/* ---------- far right: who's coming ---------- */
+.who{padding:20px 16px}
+.who-h{display:flex;align-items:baseline;gap:8px;margin:0 4px 10px}
+.who-h span{font-size:17px;font-weight:600;letter-spacing:-.02em}
+.who-h small{margin-left:auto;font-size:12px;color:var(--ink2)}
+.who-scroll{overflow-x:auto;scrollbar-width:thin;padding-bottom:4px}
+.who-t{border-collapse:separate;border-spacing:0;width:100%;min-width:262px;font-size:13px}
+.who-t th,.who-t td{padding:2px;text-align:center}
+.who-t thead th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);padding-bottom:6px}
+.who-t tbody th{text-align:left;font-weight:500;padding-left:6px;white-space:nowrap;width:84px}
+.who-t .grp th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);padding:10px 6px 4px}
+.who-t .gap td{height:10px}
+.yn{width:58px;height:26px;padding:0 6px;border-radius:13px;border:1px solid transparent;outline:none;cursor:pointer;
+  font-size:12.5px;font-weight:600;background:var(--fill);color:var(--ink2);transition:transform .1s,background .15s;-webkit-tap-highlight-color:transparent}
+.yn:active{transform:scale(.92)}
+.yn[data-v="Yes"]{background:var(--green-soft);color:#1e7e34}
+.yn[data-v="No"]{background:#f2f2f4;color:var(--ink3)}
+.yn[data-v=""]{background:#fff;border:1px dashed var(--dash);color:var(--ink3)}
+.yn:hover{border-color:var(--dash)}
+.yn:focus-visible{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft)}
+.who-t tfoot th,.who-t tfoot td{border-top:1px solid var(--line);padding-top:10px;font-size:14px;font-weight:700}
+.who-t tfoot th{text-align:left;padding-left:6px}
+
+/* ---------- "don't forget the pastry" ----------
+   flashes stay at 2 a second (under the 3-a-second photosensitive limit) */
+.party{position:fixed;inset:0;z-index:300;pointer-events:none;display:grid;place-items:center;overflow:hidden;
+  background:linear-gradient(120deg,rgba(255,45,149,.82),rgba(255,212,0,.82),rgba(0,212,255,.82),rgba(124,255,58,.82),rgba(180,77,255,.82));
+  background-size:400% 400%;animation:partyBg 1.6s linear infinite,partyHue 2.2s linear infinite;transition:opacity .6s}
+@keyframes partyBg{from{background-position:0% 50%}to{background-position:100% 50%}}
+@keyframes partyHue{to{filter:hue-rotate(360deg)}}
+.party .beams{position:absolute;inset:-60%;background:repeating-conic-gradient(rgba(255,255,255,.5) 0 7deg,transparent 7deg 30deg);animation:spin 2.6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.party .strobe{position:absolute;inset:0;background:#fff;opacity:0;animation:strobe .5s steps(1,end) infinite}
+@keyframes strobe{0%{opacity:.8}14%{opacity:0}}
+.party .rain{position:absolute;top:-100px;animation-name:rain;animation-timing-function:linear;animation-iteration-count:infinite}
+@keyframes rain{to{transform:translateY(calc(100vh + 140px)) rotate(var(--r))}}
+.party-text{position:relative;padding:0 16px;text-align:center;font-weight:900;font-size:clamp(44px,10vw,150px);line-height:.95;letter-spacing:-.02em;color:#fff;
+  text-shadow:0 0 18px #fff,0 0 42px #ff2d95,7px 7px 0 #1d1d1f;animation:wobble .55s ease-in-out infinite alternate}
+.party-text span{display:inline-block;margin:0 .14em;animation:popIn .5s cubic-bezier(.2,1.6,.4,1) both,bounce .4s ease-in-out infinite alternate;
+  animation-delay:calc(var(--i) * .18s),calc(.6s + var(--i) * .1s)}
+@keyframes popIn{from{transform:scale(0) rotate(-35deg)}}
+@keyframes bounce{to{transform:translateY(-16px) scale(1.1)}}
+@keyframes wobble{from{transform:rotate(-4deg) scale(1)}to{transform:rotate(4deg) scale(1.07)}}
+.party.out{opacity:0}
+body.quake .app{animation:quake .14s linear infinite}
+@keyframes quake{25%{transform:translate(-6px,4px) rotate(-.4deg)}50%{transform:translate(5px,-5px) rotate(.4deg)}75%{transform:translate(-4px,-3px)}}
+.party.calm{animation:none;background:rgba(255,212,0,.93)}
+.party.calm .beams,.party.calm .strobe{display:none}
+.party.calm .party-text,.party.calm .party-text span{animation:none}
+
+@media (max-width:1180px){.app{gap:14px;padding:14px}}
+.jump{display:none}
+/* ---------- phones (iPhone and similar) ---------- */
 @media (max-width:900px){
-  .app{grid-template-columns:minmax(0,1fr);height:auto;padding:12px 16px 40px}
-  .pane{overflow:visible;padding:16px}
+  html{scroll-behavior:smooth}
+  .app{grid-template-columns:minmax(0,1fr);height:auto;overflow-x:visible;
+    padding:12px max(16px,env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .pane{overflow:visible;padding:16px;scroll-margin-top:12px}
   .left .foot{margin-top:0}
-  .preview-art,.preview-art img{width:110px;height:110px}
+  .hint{padding:14px 0 4px}
+  .hint img{width:84px;height:84px}
   .right-h{top:0}
+  /* 16px text in boxes stops iPhone zooming the page when you tap them */
+  .search input,.per input,.picker .stepper input,.meal{font-size:16px}
+  .meal{height:30px;border-radius:15px}
+  /* finger-sized but still compact */
+  .chip{height:32px;border-radius:16px;padding-right:10px}
+  .chip img{width:24px;height:24px}
+  .chip .n{font-size:13px;max-width:170px}
+  .yn{width:64px;height:32px;border-radius:16px;font-size:14px}
+  .who-t tbody th{font-size:14px}
+  .row{padding:6px 2px}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+  .jump{display:flex;position:fixed;z-index:50;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));gap:2px;padding:4px;
+    border-radius:22px;background:rgba(255,255,255,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 8px 30px rgba(0,0,0,.14),0 0 0 1px var(--line)}
+  .jump a{padding:9px 15px;border-radius:18px;font-size:14px;font-weight:500;color:var(--ink2);text-decoration:none;-webkit-tap-highlight-color:transparent}
+  .jump a.on{background:var(--ink);color:#fff}
+  .party-text{font-size:min(19vw,110px);line-height:1}
+  .party-text span{display:block;margin:0}
 }
 </style>
 </head>
 <body>
 <main class="app">
 
-  <section class="pane left">
+  <section class="pane left" id="addSec">
     <div class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="text" placeholder="Search foods" autocomplete="off" spellcheck="false" aria-label="Search foods">
@@ -239,9 +315,12 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
     <div class="zone" data-slot="sl"><div class="zone-h"><span>Saturday</span>Lunch</div><div class="chips" data-empty="Drop food here"></div></div>
     <div class="zone" data-slot="se"><div class="zone-h"><span>Saturday</span>Evening</div><div class="chips" data-empty="Drop food here"></div></div>
     <div class="zone" data-slot="sb"><div class="zone-h"><span>Sunday</span>Breakfast</div><div class="chips" data-empty="Drop food here"></div></div>
+    <div class="zone extra" data-slot="dk"><div class="zone-h"><span>Drinks</span>All weekend</div><div class="chips" data-empty="Drop drinks here"></div></div>
+    <div class="zone extra" data-slot="sk"><div class="zone-h"><span>Snacks</span>All weekend</div><div class="chips" data-empty="Drop snacks here"></div></div>
+    <div class="zone extra" data-slot="mi"><div class="zone-h"><span>Miscellaneous</span>Foil, kitchen roll and the like</div><div class="chips" data-empty="Drop anything else here"></div></div>
   </section>
 
-  <section class="pane right">
+  <section class="pane right" id="listSec">
     <div class="right-h">
       <div class="seg small" id="filter">
         <button data-v="all" class="on">All</button>
@@ -253,14 +332,30 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
     <div id="list"></div>
   </section>
 
+  <section class="pane who" id="whoSec">
+    <div class="who-h"><span>Who's coming</span><small id="whoCount"></small></div>
+    <div class="who-scroll">
+      <table class="who-t">
+        <thead><tr><th></th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead>
+        <tbody id="whoBody"></tbody>
+        <tfoot><tr><th>Total people</th><td id="tot-fri"></td><td id="tot-sat"></td><td id="tot-sun"></td></tr></tfoot>
+      </table>
+    </div>
+  </section>
+
 </main>
+
+<!-- phones only: jump between the stacked sections -->
+<nav class="jump" aria-label="Sections">
+  <a href="#addSec">Add</a><a href="#board">Meals</a><a href="#listSec">List</a><a href="#whoSec">Who</a>
+</nav>
 
 <div id="toast" class="toast"></div>
 
 <!-- bump ?v= when the scripts change so browsers don't keep an old copy -->
-<script src="js/icons.js?v=9"></script>
-<script src="js/foods.js?v=9"></script>
-<script src="js/foods2.js?v=9"></script>
-<script src="js/app.js?v=9"></script>
+<script src="js/icons.js?v=12"></script>
+<script src="js/foods.js?v=12"></script>
+<script src="js/foods2.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>
