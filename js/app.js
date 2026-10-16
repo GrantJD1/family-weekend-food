@@ -662,14 +662,30 @@
 
   function render() { renderBoard(); renderMeals(); renderList(); renderWho(); }
 
-  // phone jump bar: highlight the section currently on screen
-  const jumpLinks = [...document.querySelectorAll('.jump a')];
+  // phone section bar: scroll in code so every tap works (even on the section you're already in)
+  // and the section lands just below the sticky bar
+  const jump = $('.jump');
+  const jumpLinks = [...jump.querySelectorAll('a')];
+  const markJump = hash => jumpLinks.forEach(a => a.classList.toggle('on', a.hash === hash));
+  let jumpLock = 0;
+  jump.addEventListener('click', e => {
+    const a = e.target.closest('a');
+    if (!a) return;
+    e.preventDefault();
+    const target = document.querySelector(a.hash);
+    if (!target) return;
+    markJump(a.hash);
+    jumpLock = Date.now() + 1200; // don't let the scroll-spy flicker while we glide there
+    const y = target.getBoundingClientRect().top + window.scrollY - jump.offsetHeight - 10;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  });
   if ('IntersectionObserver' in window) {
     const seen = new IntersectionObserver(entries => entries.forEach(en => {
-      if (en.isIntersecting) jumpLinks.forEach(a => a.classList.toggle('on', a.hash === '#' + en.target.id));
-    }), { rootMargin: '-45% 0px -50% 0px' });
+      if (en.isIntersecting && Date.now() > jumpLock) markJump('#' + en.target.id);
+    }), { rootMargin: '-30% 0px -65% 0px' });
     jumpLinks.forEach(a => { const t = document.querySelector(a.hash); if (t) seen.observe(t); });
   }
+  markJump('#addSec');
 
   q.placeholder = `Search ${FOODS.length.toLocaleString()} foods`;
   $('#hintImg').src = icon(FOODS.find(f => f.n === 'Strawberries') || FOODS[0]);
