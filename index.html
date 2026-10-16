@@ -20,6 +20,8 @@ body{background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacS
   -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}
+/* no double-tap-to-zoom delay on taps */
+button,a,input,.chip,.row,.res{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 img{display:block}
 
 /* four columns; on narrower screens the page scrolls sideways (scrollbar along the bottom) */
@@ -227,35 +229,50 @@ body.quake .app{animation:quake .14s linear infinite}
 .jump{display:none}
 /* ---------- phones (iPhone and similar) ---------- */
 @media (max-width:900px){
-  html{scroll-behavior:smooth}
   .app{grid-template-columns:minmax(0,1fr);height:auto;overflow-x:visible;
-    padding:12px max(16px,env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
-  .pane{overflow:visible;padding:16px;scroll-margin-top:12px}
+    padding:12px max(16px,env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .pane{overflow:visible;padding:16px}
   .left .foot{margin-top:0}
   .hint{padding:14px 0 4px}
   .hint img{width:84px;height:84px}
-  .right-h{top:0}
+  .right-h{top:64px}
   /* 16px text in boxes stops iPhone zooming the page when you tap them */
   .search input,.per input,.picker .stepper input,.meal{font-size:16px}
-  .meal{height:30px;border-radius:15px}
-  /* finger-sized but still compact */
-  .chip{height:32px;border-radius:16px;padding-right:10px}
-  .chip img{width:24px;height:24px}
-  .chip .n{font-size:13px;max-width:170px}
-  .yn{width:64px;height:32px;border-radius:16px;font-size:14px}
+  .search input{height:48px}
+  #clearQ{width:32px;height:32px;line-height:32px;font-size:18px;right:8px}
+  /* everything you tap is at least ~40px, Apple's comfortable finger size is 44 */
+  .seg button,.seg.small button,.picker .seg.small button{height:42px;font-size:15px}
+  .stepper button,.picker .stepper button{width:44px;height:44px}
+  .picker-x{width:36px;height:36px;line-height:36px;font-size:20px}
+  .ghost{height:42px;padding:0 14px}
+  .meal{height:36px;border-radius:18px}
+  .chip{height:36px;border-radius:18px;padding-right:11px}
+  .chip img{width:26px;height:26px}
+  .chip .n{font-size:13.5px;max-width:170px}
+  .yn{width:66px;height:38px;border-radius:19px;font-size:14px}
   .who-t tbody th{font-size:14px}
-  .row{padding:6px 2px}
-  .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
-  .jump{display:flex;position:fixed;z-index:50;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));gap:2px;padding:4px;
-    border-radius:22px;background:rgba(255,255,255,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 8px 30px rgba(0,0,0,.14),0 0 0 1px var(--line)}
-  .jump a{padding:9px 15px;border-radius:18px;font-size:14px;font-weight:500;color:var(--ink2);text-decoration:none;-webkit-tap-highlight-color:transparent}
-  .jump a.on{background:var(--ink);color:#fff}
+  .row{min-height:46px;padding:6px 2px}
+  .tick{width:24px;height:24px}
+  .pop .slots button{min-height:44px;font-size:13px}
+  .pop .danger{height:44px}
+  .jump{display:flex;position:sticky;top:0;z-index:50;gap:6px;
+    padding:calc(8px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left));
+    background:rgba(245,245,247,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--line)}
+  .jump a{flex:1;min-height:46px;display:flex;align-items:center;justify-content:center;border-radius:13px;background:#fff;box-shadow:0 0 0 1px var(--line);
+    font-size:15px;font-weight:600;color:var(--ink2);text-decoration:none;user-select:none;-webkit-user-select:none;transition:background .15s,transform .1s}
+  .jump a:active{transform:scale(.96)}
+  .jump a.on{background:var(--ink);color:#fff;box-shadow:none}
   .party-text{font-size:min(19vw,110px);line-height:1}
   .party-text span{display:block;margin:0}
 }
 </style>
 </head>
 <body>
+<!-- phones only: sticky bar at the top for jumping between the stacked sections
+     (kept away from the bottom edge, where iPhone Safari's own toolbar catches taps) -->
+<nav class="jump" aria-label="Sections">
+  <a href="#addSec">Add</a><a href="#board">Meals</a><a href="#listSec">List</a><a href="#whoSec">Who</a>
+</nav>
 <main class="app">
 
   <section class="pane left" id="addSec">
@@ -345,17 +362,12 @@ body.quake .app{animation:quake .14s linear infinite}
 
 </main>
 
-<!-- phones only: jump between the stacked sections -->
-<nav class="jump" aria-label="Sections">
-  <a href="#addSec">Add</a><a href="#board">Meals</a><a href="#listSec">List</a><a href="#whoSec">Who</a>
-</nav>
-
 <div id="toast" class="toast"></div>
 
 <!-- bump ?v= when the scripts change so browsers don't keep an old copy -->
-<script src="js/icons.js?v=12"></script>
-<script src="js/foods.js?v=12"></script>
-<script src="js/foods2.js?v=12"></script>
-<script src="js/app.js?v=12"></script>
+<script src="js/icons.js?v=13"></script>
+<script src="js/foods.js?v=13"></script>
+<script src="js/foods2.js?v=13"></script>
+<script src="js/app.js?v=13"></script>
 </body>
 </html>
