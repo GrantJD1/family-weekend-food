@@ -175,6 +175,30 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:rgba(29,29,31,.92);color:#fff;font-size:14px;padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;pointer-events:none;z-index:90}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
+/* ---------- who's bringing it ---------- */
+.bring-by{font-size:13px;color:var(--ink2);padding-left:2px}
+.bring-by b{color:var(--ink)}
+.link{color:var(--blue);font-weight:500;font-size:13px;padding:2px}
+.chip .m.by{width:16px;height:16px;display:grid;place-items:center;background:var(--green);color:#fff;font-size:9.5px;font-weight:700;line-height:1}
+.aisle.person .aisle-h i{border-radius:50%;width:10px;height:10px}
+.nothing{font-size:12.5px;color:var(--ink3);padding:8px 2px 2px}
+.bring-sheet{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.3);animation:sheetIn .15s ease-out;transition:opacity .18s}
+.bring-sheet.out{opacity:0}
+@keyframes sheetIn{from{opacity:0}}
+.bs-card{width:min(400px,100%);background:#fff;border-radius:22px;padding:18px;box-shadow:0 24px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:14px;animation:pop .25s cubic-bezier(.2,.9,.3,1.2)}
+.bs-h{display:flex;align-items:center;gap:12px}
+.bs-h img{width:52px;height:52px;flex:none}
+.bs-title{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.bs-sub{font-size:13px;color:var(--ink2)}
+.bs-people{display:grid;gap:8px}
+.bs-people button{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 14px;border-radius:14px;background:var(--fill);font-size:17px;font-weight:600;text-align:left;transition:background .15s,transform .1s}
+.bs-people button:hover{background:#e8e8ed}
+.bs-people button:active{transform:scale(.98)}
+.bs-people button.on{background:var(--green-soft);box-shadow:inset 0 0 0 2px var(--green)}
+.bs-people i{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-style:normal;font-size:15px;font-weight:700}
+.bs-cancel{min-height:46px;border-radius:14px;color:var(--blue);font-weight:600;font-size:16px}
+.bs-cancel:hover{background:var(--blue-soft)}
+
 /* ---------- far right: who's coming ---------- */
 .who{padding:20px 16px}
 .who-h{display:flex;align-items:baseline;gap:8px;margin:0 4px 10px}
@@ -229,6 +253,9 @@ body.quake .app{animation:quake .14s linear infinite}
 .jump{display:none}
 /* ---------- phones (iPhone and similar) ---------- */
 @media (max-width:900px){
+  /* let the page grow so the sticky section bar stays pinned all the way down */
+  html,body{height:auto}
+  .right-h .seg button{white-space:nowrap;padding:0 6px;font-size:14px}
   .app{grid-template-columns:minmax(0,1fr);height:auto;overflow-x:visible;
     padding:12px max(16px,env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
   .pane{overflow:visible;padding:16px}
@@ -254,6 +281,9 @@ body.quake .app{animation:quake .14s linear infinite}
   .row{min-height:46px;padding:6px 2px}
   .tick{width:24px;height:24px}
   .pop .slots button{min-height:44px;font-size:13px}
+  .chip .m.by{width:18px;height:18px;font-size:10.5px}
+  .bring-by{font-size:14px}
+  .link{font-size:14px;padding:8px 4px}
   .pop .danger{height:44px}
   .jump{display:flex;position:sticky;top:0;z-index:50;gap:6px;
     padding:calc(8px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left));
@@ -311,6 +341,7 @@ body.quake .app{animation:quake .14s linear infinite}
         <button data-v="buy" class="on">Buying</button>
         <button data-v="bring">Bringing</button>
       </div>
+      <div class="bring-by" id="bringBy" hidden>Brought by <b id="bringWho"></b> · <button type="button" class="link" id="bringChange">Change</button></div>
       <button id="add" class="primary">Add</button>
     </div>
 
@@ -365,9 +396,9 @@ body.quake .app{animation:quake .14s linear infinite}
 <div id="toast" class="toast"></div>
 
 <!-- bump ?v= when the scripts change so browsers don't keep an old copy -->
-<script src="js/icons.js?v=13"></script>
-<script src="js/foods.js?v=13"></script>
-<script src="js/foods2.js?v=13"></script>
-<script src="js/app.js?v=13"></script>
+<script src="js/icons.js?v=15"></script>
+<script src="js/foods.js?v=15"></script>
+<script src="js/foods2.js?v=15"></script>
+<script src="js/app.js?v=15"></script>
 </body>
 </html>
