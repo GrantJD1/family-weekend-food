@@ -5,20 +5,18 @@
      top of google-sheet/Code.gs and paste the Web app URL here, e.g.
        const SHEET_URL = 'https://script.google.com/macros/s/XXXX/exec';
      ------------------------------------------------------------------ */
+  // Leave empty to save the list in this browser only.
   const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzJI0zK9Yj-GYXIoiVmXGW_6vsu44l2DRuuEcUodb7LLk2lh0PKaYJoxR4IgevU37vJOg/exec';
 
-  /* ------------------------------------------------------------------
-     Alternatively, Firebase.
-     Leave SYNC_URL (and SHEET_URL) empty and the list is saved in this browser only.
-     To let everyone with the link see and edit the same list, create a free
-     Firebase Realtime Database (console.firebase.google.com → Build →
-     Realtime Database), set its rules to { "rules": { ".read": true, ".write": true } }
-     and paste the database URL plus a name for this trip, e.g.
-       const SYNC_URL = 'https://our-weekend-default-rtdb.europe-west1.firebasedatabase.app/weekend';
-     ------------------------------------------------------------------ */
-  const SYNC_URL = '';
+  const SLOTS = [['pool', 'Not planned'], ['fe', 'Fri evening'], ['sm', 'Sat morning'], ['sl', 'Sat lunch'], ['se', 'Sat evening'], ['sb', 'Sun breakfast'],
+    ['dk', 'Drinks'], ['sk', 'Snacks'], ['mi', 'Miscellaneous']];
 
-  const SLOTS = [['pool', 'Not planned'], ['fe', 'Fri evening'], ['sm', 'Sat morning'], ['sl', 'Sat lunch'], ['se', 'Sat evening'], ['sb', 'Sun breakfast']];
+  /* Who's coming – keep in step with WHO_* in google-sheet/Code.gs */
+  const DAYS = [['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
+  const WHO_MEALS = ['Breakfast', 'Lunch', 'Dinner'];
+  const WHO_PEOPLE = [['Dad', 'Rita', 'Rob', 'Faye', 'Emilia', 'Anwen', 'Benji'], ['Hannah', 'Mowgli', 'James', 'Sophie', 'Marie', 'Nick', 'Chris', 'Nicky']];
+  const WHO_DEFAULT = { 'Breakfast|fri': 'No', 'Lunch|fri': 'No' }; // everything else starts as Yes
+  const PASTRY = /puff pastry/i;
   const SLOT_NAME = Object.fromEntries(SLOTS);
   const CAT = Object.fromEntries(CATS.map(c => [c.k, c]));
   const CAT_SHAPE = { fv: 'leaf', ba: 'loaf', me: 'steak', fi: 'fish', da: 'tub', ch: 'tray', cu: 'jar', sp: 'shaker', sn: 'bag', dr: 'bottle', fr: 'bag', ho: 'box' };
@@ -43,6 +41,8 @@
 
   let items = {};
   let meals = {}; // slot -> meal name, e.g. { fe: 'Chilli con carne' }
+  let who = {};   // 'Row|day' -> 'Yes' | 'No' | '' ; missing cells fall back to WHO_DEFAULT
+  const whoVal = k => (k in who ? who[k] : k in WHO_DEFAULT ? WHO_DEFAULT[k] : 'Yes');
 
   /* ---------------- storage ---------------- */
   function setStatus(kind, text) {
@@ -51,81 +51,24 @@
   }
 
   function localStore() {
-    const KEY = 'weekend-food-v1', MKEY = 'weekend-food-meals-v1';
+    const KEY = 'weekend-food-v1', MKEY = 'weekend-food-meals-v1', WKEY = 'weekend-food-who-v1';
     const read = k => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } };
     const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } };
     items = read(KEY);
     meals = read(MKEY);
+    who = read(WKEY);
     window.addEventListener('storage', e => {
       if (e.key === KEY) { items = read(KEY); render(); }
       if (e.key === MKEY) { meals = read(MKEY); render(); }
+      if (e.key === WKEY) { who = read(WKEY); render(); }
     });
     setStatus('', 'Saved on this device');
     return {
       put(id, it) { items[id] = it; save(KEY, items); },
       patch(id, f) { if (items[id]) Object.assign(items[id], f); save(KEY, items); },
       del(id) { delete items[id]; save(KEY, items); },
-      setMeal(slot, name) { if (name) meals[slot] = name; else delete meals[slot]; save(MKEY, meals); }
-    };
-  }
-
-  function remoteStore() {
-    const base = SYNC_URL.replace(/\/+$/, '').replace(/\.json$/, '');
-    const url = p => `${base}/items${p ? '/' + p : ''}.json`;
-    const CACHE = 'weekend-food-cache', MCACHE = 'weekend-food-meals-cache';
-    try { items = JSON.parse(localStorage.getItem(CACHE)) || {}; } catch (e) { items = {}; }
-    try { meals = JSON.parse(localStorage.getItem(MCACHE)) || {}; } catch (e) { meals = {}; }
-    const cache = () => { try { localStorage.setItem(CACHE, JSON.stringify(items)); } catch (e) { /* ignore */ } };
-    const cacheMeals = () => { try { localStorage.setItem(MCACHE, JSON.stringify(meals)); } catch (e) { /* ignore */ } };
-    setStatus('', 'Connecting…');
-
-    function applyMeals(path, data, merge) {
-      const [slot] = path.split('/').filter(Boolean);
-      if (!slot) {
-        if (merge) for (const k in data) { if (data[k] === null) delete meals[k]; else meals[k] = data[k]; }
-        else meals = data || {};
-      } else if (data === null) delete meals[slot];
-      else meals[slot] = data;
-      cacheMeals();
-      render();
-    }
-    const ms = new EventSource(`${base}/meals.json`);
-    ms.addEventListener('put', e => { const d = JSON.parse(e.data); applyMeals(d.path, d.data, false); });
-    ms.addEventListener('patch', e => { const d = JSON.parse(e.data); applyMeals(d.path, d.data, true); });
-
-    function apply(path, data, merge) {
-      const [id, field] = path.split('/').filter(Boolean);
-      if (!id) {
-        if (merge) for (const k in data) { if (data[k] === null) delete items[k]; else items[k] = data[k]; }
-        else items = data || {};
-      } else if (!field) {
-        if (data === null) delete items[id];
-        else items[id] = merge ? Object.assign(items[id] || {}, data) : data;
-      } else if (items[id]) {
-        if (data === null) delete items[id][field]; else items[id][field] = data;
-      }
-      cache();
-      render();
-    }
-    const es = new EventSource(url());
-    es.addEventListener('put', e => { const d = JSON.parse(e.data); apply(d.path, d.data, false); });
-    es.addEventListener('patch', e => { const d = JSON.parse(e.data); apply(d.path, d.data, true); });
-    es.onopen = () => setStatus('live', 'Live · shared with everyone');
-    es.onerror = () => setStatus('err', 'Reconnecting…');
-
-    const send = (method, path, body) =>
-      fetch(`${base}/${path}.json`, { method, body: body === undefined ? undefined : JSON.stringify(body) })
-        .then(r => { if (!r.ok) throw new Error(r.status); })
-        .catch(() => { setStatus('err', 'Couldn’t save — check connection'); });
-    return {
-      put(id, it) { items[id] = it; cache(); send('PUT', 'items/' + id, it); },
-      patch(id, f) { if (items[id]) Object.assign(items[id], f); cache(); send('PATCH', 'items/' + id, f); },
-      del(id) { delete items[id]; cache(); send('DELETE', 'items/' + id); },
-      setMeal(slot, name) {
-        if (name) meals[slot] = name; else delete meals[slot];
-        cacheMeals();
-        send(name ? 'PUT' : 'DELETE', 'meals/' + slot, name || undefined);
-      }
+      setMeal(slot, name) { if (name) meals[slot] = name; else delete meals[slot]; save(MKEY, meals); },
+      setWho(k, v) { who[k] = v; save(WKEY, who); }
     };
   }
 
@@ -136,29 +79,35 @@
     else if (op.t === 'patch') { if (s.items[op.id]) Object.assign(s.items[op.id], op.f); }
     else if (op.t === 'del') delete s.items[op.id];
     else if (op.t === 'meal') { if (op.name) s.meals[op.slot] = op.name; else delete s.meals[op.slot]; }
+    else if (op.t === 'who') s.who[op.k] = op.v;
   }
 
   function sheetStore() {
     const CACHE = 'weekend-food-sheet-cache';
-    try { const c = JSON.parse(localStorage.getItem(CACHE)); if (c) { items = c.items || {}; meals = c.meals || {}; } } catch (e) { /* ignore */ }
+    try { const c = JSON.parse(localStorage.getItem(CACHE)); if (c) { items = c.items || {}; meals = c.meals || {}; who = c.who || {}; } } catch (e) { /* ignore */ }
     const pending = [];
-    let sending = false, last = '', flushTimer;
-    const cache = () => { try { localStorage.setItem(CACHE, JSON.stringify({ items, meals })); } catch (e) { /* ignore */ } };
+    let sending = false, last = '', flushTimer, synced = false;
+    const cache = () => { try { localStorage.setItem(CACHE, JSON.stringify({ items, meals, who })); } catch (e) { /* ignore */ } };
     const ok = () => setStatus('live', 'Live · shared via Google Sheets');
     const fail = () => setStatus('err', 'Offline – will retry');
     setStatus('', 'Connecting…');
 
     // take the sheet's copy, then re-apply anything we've changed that it hasn't seen yet
     function accept(s) {
-      const st = { items: (s && s.items) || {}, meals: (s && s.meals) || {} };
+      const st = { items: (s && s.items) || {}, meals: (s && s.meals) || {}, who: (s && s.who) || {} };
       pending.forEach(op => applyOp(st, op));
       const j = JSON.stringify(st);
       if (j === last) return;
       last = j;
+      // someone else just added puff pastry (our own adds are already in `items`)
+      const party = synced && Object.keys(st.items).some(id => !items[id] && PASTRY.test(st.items[id].n || ''));
+      synced = true;
       items = st.items;
       meals = st.meals;
+      who = st.who;
       cache();
       render();
+      if (party) pastryParty();
     }
     // background refreshes pause while the page is hidden; the first load always fetches
     async function pull(first) {
@@ -190,7 +139,7 @@
       if (pending.length) flushTimer = setTimeout(flush, sent ? 0 : 4000);
     }
     function queue(op) {
-      applyOp({ items, meals }, op);
+      applyOp({ items, meals, who }, op);
       pending.push(op);
       cache();
       clearTimeout(flushTimer);
@@ -203,11 +152,12 @@
       put(id, it) { queue({ t: 'put', id, it }); },
       patch(id, f) { queue({ t: 'patch', id, f }); },
       del(id) { queue({ t: 'del', id }); },
-      setMeal(slot, name) { queue({ t: 'meal', slot, name }); }
+      setMeal(slot, name) { queue({ t: 'meal', slot, name }); },
+      setWho(k, v) { queue({ t: 'who', k, v }); }
     };
   }
 
-  const store = SHEET_URL ? sheetStore() : SYNC_URL ? remoteStore() : localStore();
+  const store = SHEET_URL ? sheetStore() : localStore();
 
   /* ---------------- selector (left) ---------------- */
   const q = $('#q'), results = $('#results'), addBtn = $('#add'), qty = $('#qty'), per = $('#per'), picker = $('#picker'), hint = $('#hint');
@@ -357,6 +307,7 @@
       m: mode, q: clampQty(qty.value), u: unit, p: unit === 'pk' && p > 0 ? p : 0, slot: 'pool', done: false, t: Date.now()
     });
     toast(`${f.n} added`);
+    if (PASTRY.test(f.n)) pastryParty();
     q.value = '';
     $('#clearQ').hidden = true;
     closePicker();
@@ -405,7 +356,7 @@
     measure.font = `600 ${cs.fontSize} ${cs.fontFamily}`;
     input.style.width = Math.ceil(measure.measureText(input.value || input.placeholder).width) + 26 + 'px';
   }
-  board.querySelectorAll('.zone:not(.tray)').forEach(zone => {
+  board.querySelectorAll('.zone:not(.tray):not(.extra)').forEach(zone => {
     const slot = zone.dataset.slot;
     const input = document.createElement('input');
     input.className = 'meal';
@@ -649,6 +600,56 @@
     t.remove();
   }
 
+  /* ---------------- who's coming (far right) ---------------- */
+  const whoBody = $('#whoBody');
+  // one tap flips Yes ⇄ No (quicker than a dropdown on a phone)
+  const whoCells = row => DAYS.map(([d, day]) =>
+    `<td><button type="button" class="yn" data-k="${esc(row)}|${d}" aria-label="${esc(row)}, ${day}"></button></td>`).join('');
+  whoBody.innerHTML =
+    '<tr class="grp"><th colspan="4">Meals happening</th></tr>' +
+    WHO_MEALS.map(r => `<tr><th>${r}</th>${whoCells(r)}</tr>`).join('') +
+    WHO_PEOPLE.map((group, i) => (i ? '<tr class="gap"><td colspan="4"></td></tr>' : '<tr class="grp"><th colspan="4">People</th></tr>') +
+      group.map(p => `<tr><th>${esc(p)}</th>${whoCells(p)}</tr>`).join('')).join('');
+  whoBody.addEventListener('click', e => {
+    const b = e.target.closest('button.yn');
+    if (!b) return;
+    store.setWho(b.dataset.k, whoVal(b.dataset.k) === 'Yes' ? 'No' : 'Yes');
+    renderWho();
+  });
+  function renderWho() {
+    whoBody.querySelectorAll('button.yn').forEach(b => {
+      const v = whoVal(b.dataset.k);
+      b.textContent = v || '–';
+      b.dataset.v = v;
+      b.setAttribute('aria-pressed', v === 'Yes');
+    });
+    const people = WHO_PEOPLE.flat();
+    const totals = DAYS.map(([d]) => people.filter(p => whoVal(`${p}|${d}`) === 'Yes').length);
+    DAYS.forEach(([d], i) => { $('#tot-' + d).textContent = totals[i]; });
+    $('#whoCount').textContent = `${Math.max(...totals)} of ${people.length} coming`;
+  }
+
+  /* ---------------- puff pastry alert ----------------
+     Very over the top, but flashes stay at 2 a second (under the 3-a-second photosensitive
+     safety limit), and devices set to "reduce motion" get a calm version. */
+  function pastryParty() {
+    if (document.querySelector('.party')) return;
+    const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pastry = icon(FOODS.find(f => f.n === 'Puff pastry') || { n: 'Puff pastry', s: 'roll', c: [] });
+    const party = document.createElement('div');
+    party.className = 'party' + (calm ? ' calm' : '');
+    party.setAttribute('role', 'alert');
+    party.innerHTML = '<div class="beams"></div><div class="strobe"></div>' +
+      Array.from({ length: calm ? 0 : 26 }, () =>
+        `<img class="rain" src="${pastry}" alt="" style="left:${(Math.random() * 96).toFixed(1)}%;width:${36 + Math.round(Math.random() * 44)}px;` +
+        `animation-delay:${(Math.random() * 2).toFixed(2)}s;animation-duration:${(1.4 + Math.random() * 1.6).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg">`).join('') +
+      `<div class="party-text">${["DON'T", 'FORGET', 'THE', 'PASTRY'].map((w, i) => `<span style="--i:${i}">${w}</span>`).join(' ')}</div>`;
+    document.body.appendChild(party);
+    if (!calm) document.body.classList.add('quake');
+    setTimeout(() => party.classList.add('out'), 4800);
+    setTimeout(() => { party.remove(); document.body.classList.remove('quake'); }, 5400);
+  }
+
   /* ---------------- misc ---------------- */
   let toastTimer;
   function toast(msg) {
@@ -659,7 +660,16 @@
     toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
   }
 
-  function render() { renderBoard(); renderMeals(); renderList(); }
+  function render() { renderBoard(); renderMeals(); renderList(); renderWho(); }
+
+  // phone jump bar: highlight the section currently on screen
+  const jumpLinks = [...document.querySelectorAll('.jump a')];
+  if ('IntersectionObserver' in window) {
+    const seen = new IntersectionObserver(entries => entries.forEach(en => {
+      if (en.isIntersecting) jumpLinks.forEach(a => a.classList.toggle('on', a.hash === '#' + en.target.id));
+    }), { rootMargin: '-45% 0px -50% 0px' });
+    jumpLinks.forEach(a => { const t = document.querySelector(a.hash); if (t) seen.observe(t); });
+  }
 
   q.placeholder = `Search ${FOODS.length.toLocaleString()} foods`;
   $('#hintImg').src = icon(FOODS.find(f => f.n === 'Strawberries') || FOODS[0]);
