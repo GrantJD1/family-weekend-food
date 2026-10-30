@@ -17,10 +17,10 @@ const WHO_TAB = "Who's coming";
 const ITEM_HEAD = ['Food', 'Aisle', 'Get it by', 'Quantity', 'When', 'Ticked', 'id', 'data'];
 const MEAL_HEAD = ['Meal time', 'Meal name', 'slot'];
 const SLOTS = {
-  pool: 'Not planned', fe: 'Friday evening', sm: 'Saturday morning', sl: 'Saturday lunch', se: 'Saturday evening', sb: 'Sunday breakfast',
-  dk: 'Drinks', sk: 'Snacks', mi: 'Miscellaneous'
+  pool: 'Not planned', fe: 'Friday evening', sm: 'Saturday morning', sl: 'Saturday lunch', se: 'Saturday evening', sb: 'Sunday breakfast', su: 'Sunday lunch',
+  dk: 'Drinks', sk: 'Snacks', mi: 'Miscellaneous', pd: 'Puddings and Desserts'
 };
-const MEAL_SLOTS = ['fe', 'sm', 'sl', 'se', 'sb'];
+const MEAL_SLOTS = ['fe', 'sm', 'sl', 'se', 'sb', 'su'];
 const AISLES = {
   fv: 'Fruit & Veg', ba: 'Bakery', me: 'Meat & Poultry', fi: 'Fish & Seafood', da: 'Dairy & Eggs', ch: 'Chilled & Deli',
   cu: 'Food Cupboard', sp: 'Herbs, Spices & Sauces', sn: 'Snacks & Sweets', dr: 'Drinks', fr: 'Frozen', ho: 'Household'
@@ -77,6 +77,13 @@ function rows_(sh, width) {
   return sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues() : [];
 }
 
+// overwrite first, then trim leftovers, so a failure part-way can never leave a tab empty
+function writeRows_(sh, rows, width) {
+  if (rows.length) sh.getRange(2, 1, rows.length, width).setValues(rows);
+  const extra = sh.getLastRow() - 1 - rows.length;
+  if (extra > 0) sh.getRange(2 + rows.length, 1, extra, width).clearContent();
+}
+
 const yesNo_ = v => (/^y/i.test(String(v).trim()) ? 'Yes' : /^n/i.test(String(v).trim()) ? 'No' : '');
 
 function load_() {
@@ -114,13 +121,10 @@ function save_(s) {
     .sort((a, b) => (a[1].t || 0) - (b[1].t || 0))
     .map(([id, x]) => [safe_(x.n), AISLES[x.cat] || '', x.m === 'bring' ? 'Bringing' : 'Buying', qty_(x),
       (SLOTS[x.slot] || 'Not planned') + (s.meals[x.slot] ? ' – ' + s.meals[x.slot] : ''), x.done ? '✓' : '', id, JSON.stringify(x)]);
-  if (it.getLastRow() > 1) it.getRange(2, 1, it.getLastRow() - 1, ITEM_HEAD.length).clearContent();
-  if (rows.length) it.getRange(2, 1, rows.length, ITEM_HEAD.length).setValues(rows);
+  writeRows_(it, rows, ITEM_HEAD.length);
 
-  const ml = tab_(MEALS_TAB, MEAL_HEAD);
   const mrows = MEAL_SLOTS.map(k => [SLOTS[k], safe_(s.meals[k] || ''), k]);
-  if (ml.getLastRow() > 1) ml.getRange(2, 1, ml.getLastRow() - 1, MEAL_HEAD.length).clearContent();
-  ml.getRange(2, 1, mrows.length, MEAL_HEAD.length).setValues(mrows);
+  writeRows_(tab_(MEALS_TAB, MEAL_HEAD), mrows, MEAL_HEAD.length);
 
   saveWho_(s.who);
 }
