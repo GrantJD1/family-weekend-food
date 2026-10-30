@@ -161,7 +161,7 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .empty-list{color:var(--ink3);text-align:center;padding:60px 10px;font-size:14px}
 
 /* ---------- popover ---------- */
-.pop{position:fixed;z-index:60;width:260px;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:18px;
+.pop{position:fixed;z-index:60;width:260px;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:18px;
   box-shadow:0 20px 50px rgba(0,0,0,.18),0 0 0 1px var(--line);padding:14px;display:flex;flex-direction:column;gap:12px;animation:pop .2s ease-out}
 .pop-h{display:flex;align-items:center;gap:10px;font-weight:600}
 .pop-h img{width:44px;height:44px}
@@ -363,9 +363,11 @@ body.quake .app{animation:quake .14s linear infinite}
     <div class="zone" data-slot="sl"><div class="zone-h"><span>Saturday</span>Lunch</div><div class="chips" data-empty="Drop food here"></div></div>
     <div class="zone" data-slot="se"><div class="zone-h"><span>Saturday</span>Evening</div><div class="chips" data-empty="Drop food here"></div></div>
     <div class="zone" data-slot="sb"><div class="zone-h"><span>Sunday</span>Breakfast</div><div class="chips" data-empty="Drop food here"></div></div>
+    <div class="zone" data-slot="su"><div class="zone-h"><span>Sunday</span>Lunch</div><div class="chips" data-empty="Drop food here"></div></div>
     <div class="zone extra" data-slot="dk"><div class="zone-h"><span>Drinks</span>All weekend</div><div class="chips" data-empty="Drop drinks here"></div></div>
     <div class="zone extra" data-slot="sk"><div class="zone-h"><span>Snacks</span>All weekend</div><div class="chips" data-empty="Drop snacks here"></div></div>
     <div class="zone extra" data-slot="mi"><div class="zone-h"><span>Miscellaneous</span>Foil, kitchen roll and the like</div><div class="chips" data-empty="Drop anything else here"></div></div>
+    <div class="zone extra" data-slot="pd"><div class="zone-h"><span>Puddings and Desserts</span>All weekend</div><div class="chips" data-empty="Drop puddings here"></div></div>
   </section>
 
   <section class="pane right" id="listSec">
@@ -396,9 +398,9 @@ body.quake .app{animation:quake .14s linear infinite}
 <div id="toast" class="toast"></div>
 
 <!-- bump ?v= when the scripts change so browsers don't keep an old copy -->
-<script src="js/icons.js?v=15"></script>
-<script src="js/foods.js?v=15"></script>
-<script src="js/foods2.js?v=15"></script>
-<script src="js/app.js?v=15"></script>
+<script src="js/icons.js?v=16"></script>
+<script src="js/foods.js?v=16"></script>
+<script src="js/foods2.js?v=16"></script>
+<script src="js/app.js?v=16"></script>
 </body>
 </html>
