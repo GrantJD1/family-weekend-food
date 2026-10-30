@@ -8,8 +8,8 @@
   // Leave empty to save the list in this browser only.
   const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzJI0zK9Yj-GYXIoiVmXGW_6vsu44l2DRuuEcUodb7LLk2lh0PKaYJoxR4IgevU37vJOg/exec';
 
-  const SLOTS = [['pool', 'Not planned'], ['fe', 'Fri evening'], ['sm', 'Sat morning'], ['sl', 'Sat lunch'], ['se', 'Sat evening'], ['sb', 'Sun breakfast'],
-    ['dk', 'Drinks'], ['sk', 'Snacks'], ['mi', 'Miscellaneous']];
+  const SLOTS = [['pool', 'Not planned'], ['fe', 'Fri evening'], ['sm', 'Sat morning'], ['sl', 'Sat lunch'], ['se', 'Sat evening'], ['sb', 'Sun breakfast'], ['su', 'Sun lunch'],
+    ['dk', 'Drinks'], ['sk', 'Snacks'], ['mi', 'Miscellaneous'], ['pd', 'Puddings and Desserts']];
 
   /* Who's coming – keep in step with WHO_* in google-sheet/Code.gs */
   const DAYS = [['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
@@ -371,7 +371,7 @@
   }
 
   /* meal names above each slot, e.g. "Chilli con carne" for Friday evening */
-  const MEAL_EG = { fe: 'Chilli con carne', sm: 'Full English', sl: 'Picnic lunch', se: 'BBQ', sb: 'Pancakes' };
+  const MEAL_EG = { fe: 'Chilli con carne', sm: 'Full English', sl: 'Picnic lunch', se: 'BBQ', sb: 'Pancakes', su: 'Sunday roast' };
   const measure = document.createElement('canvas').getContext('2d');
   // inputs don't grow with their text, so size each pill to fit what's in it
   function sizeMeal(input) {
