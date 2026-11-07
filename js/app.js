@@ -66,12 +66,31 @@
       if (e.key === WKEY) { who = read(WKEY); render(); }
     });
     setStatus('', 'Saved on this device');
+    // restore points, like the Sheet's: at most one an hour, taken just before a change
+    const BKEY = 'weekend-food-backups-v1';
+    const backupList = () => { try { return JSON.parse(localStorage.getItem(BKEY)) || []; } catch (e) { return []; } };
+    function snap(why) {
+      const id = 'b' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+      save(BKEY, backupList().concat({ id, time: new Date().toISOString(), why, items: Object.keys(items).length, data: JSON.stringify({ items, meals, who }) }).slice(-30));
+      return id;
+    }
+    const auto = () => { const l = backupList(); if (!l.length || Date.now() - Date.parse(l[l.length - 1].time) > 3600e3) snap('Automatic'); };
     return {
-      put(id, it) { items[id] = it; save(KEY, items); },
-      patch(id, f) { if (items[id]) Object.assign(items[id], f); save(KEY, items); },
-      del(id) { delete items[id]; save(KEY, items); },
-      setMeal(slot, name) { if (name) meals[slot] = name; else delete meals[slot]; save(MKEY, meals); },
-      setWho(k, v) { who[k] = v; save(WKEY, who); }
+      put(id, it) { auto(); items[id] = it; save(KEY, items); },
+      patch(id, f) { auto(); if (items[id]) Object.assign(items[id], f); save(KEY, items); },
+      del(id) { auto(); delete items[id]; save(KEY, items); },
+      setMeal(slot, name) { auto(); if (name) meals[slot] = name; else delete meals[slot]; save(MKEY, meals); },
+      setWho(k, v) { auto(); who[k] = v; save(WKEY, who); },
+      async backups() { return backupList().map(({ data, ...b }) => b).reverse(); },
+      async restore(id) {
+        const b = backupList().find(x => x.id === id);
+        if (!b) return null;
+        const undo = snap('Before restore');
+        const d = JSON.parse(b.data);
+        items = d.items || {}; meals = d.meals || {}; who = d.who || who;
+        save(KEY, items); save(MKEY, meals); save(WKEY, who);
+        return { from: id, undo };
+      }
     };
   }
 
@@ -102,8 +121,8 @@
       const j = JSON.stringify(st);
       if (j === last) return;
       last = j;
-      // someone else just added puff pastry (our own adds are already in `items`)
-      const party = synced && Object.keys(st.items).some(id => !items[id] && PASTRY.test(st.items[id].n || ''));
+      // someone else just added puff pastry (our own adds are already in `items`; a restore doesn't count)
+      const party = synced && !(s && s.restored) && Object.keys(st.items).some(id => !items[id] && PASTRY.test(st.items[id].n || ''));
       synced = true;
       items = st.items;
       meals = st.meals;
@@ -156,11 +175,90 @@
       patch(id, f) { queue({ t: 'patch', id, f }); },
       del(id) { queue({ t: 'del', id }); },
       setMeal(slot, name) { queue({ t: 'meal', slot, name }); },
-      setWho(k, v) { queue({ t: 'who', k, v }); }
+      setWho(k, v) { queue({ t: 'who', k, v }); },
+      async backups() {
+        const r = await fetch(SHEET_URL + '?list=backups', { cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        return (await r.json()).backups || [];
+      },
+      async restore(id) {
+        // send anything still waiting first, so it can't land on top of the restored list afterwards
+        for (let i = 0; i < 60 && (pending.length || sending); i++) { flush(); await new Promise(r => setTimeout(r, 250)); }
+        if (pending.length || sending) throw new Error('busy');
+        sending = true;
+        try {
+          const r = await fetch(SHEET_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ops: [{ t: 'restore', id }] }) });
+          if (!r.ok) throw new Error(r.status);
+          const s = await r.json();
+          accept(s);
+          ok();
+          return s.restored || null;
+        } finally { sending = false; }
+      }
     };
   }
 
   const store = SHEET_URL ? sheetStore() : localStore();
+
+  /* ---------------- undo ----------------
+     Every change made on this device remembers how to reverse it; Undo plays the last one back. */
+  const undoStack = [];
+  const clone = v => JSON.parse(JSON.stringify(v));
+  function remember(label, steps, key) {
+    const top = undoStack[undoStack.length - 1];
+    // quick repeated taps on the same thing (+ + +) undo together, back to how it was before the first
+    if (key && top && top.key === key && Date.now() - top.time < 2000) { top.time = Date.now(); return; }
+    undoStack.push({ label, steps, key, time: Date.now() });
+    if (undoStack.length > 50) undoStack.shift();
+    paintUndo();
+  }
+  const edit = {
+    put(id, it, label) { store.put(id, it); remember(label, [{ t: 'del', id }]); },
+    del(id, label) {
+      const old = items[id] && clone(items[id]);
+      store.del(id);
+      if (old) remember(label, [{ t: 'put', id, it: old }]);
+    },
+    patch(ids, f, label) {
+      ids = [].concat(ids).filter(id => items[id]);
+      const steps = ids.map(id => ({ t: 'patch', id, f: Object.fromEntries(Object.keys(f).map(k => [k, k in items[id] ? clone(items[id][k]) : null])) }));
+      ids.forEach(id => store.patch(id, f));
+      if (steps.length) remember(label, steps, 'p:' + ids.join(',') + ':' + Object.keys(f).sort().join(','));
+    },
+    setMeal(slot, name, label) { const old = meals[slot] || ''; store.setMeal(slot, name); remember(label, [{ t: 'meal', slot, name: old }]); },
+    setWho(k, v, label) { const old = whoVal(k); store.setWho(k, v); remember(label, [{ t: 'who', k, v: old }]); }
+  };
+  async function undo() {
+    const last = undoStack.pop();
+    paintUndo();
+    if (!last) return;
+    try {
+      for (const s of last.steps.slice().reverse()) {
+        if (s.t === 'put') store.put(s.id, s.it);
+        else if (s.t === 'del') store.del(s.id);
+        else if (s.t === 'patch') store.patch(s.id, s.f);
+        else if (s.t === 'meal') store.setMeal(s.slot, s.name);
+        else if (s.t === 'who') store.setWho(s.k, s.v);
+        else if (s.t === 'restore') { if (!(await store.restore(s.id))) throw new Error('missing'); }
+      }
+      closePop();
+      render();
+      toast(`Undone: ${last.label}`);
+    } catch (e) {
+      undoStack.push(last);
+      paintUndo();
+      toast(e.message === 'busy' ? 'Still saving – try Undo again in a moment' : 'Couldn’t undo just now – try again');
+    }
+  }
+  function paintUndo() {
+    const b = $('#undoBtn'), top = undoStack[undoStack.length - 1];
+    b.disabled = !top;
+    b.title = top ? `Undo ${top.label}` : 'Nothing to undo yet';
+  }
+  $('#undoBtn').addEventListener('click', undo);
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !e.target.closest('input, textarea, select')) { e.preventDefault(); undo(); }
+  });
 
   /* ---------------- selector (left) ---------------- */
   const q = $('#q'), results = $('#results'), addBtn = $('#add'), qty = $('#qty'), per = $('#per'), picker = $('#picker'), hint = $('#hint');
@@ -322,10 +420,10 @@
     if (!selected) return;
     const f = selected;
     const p = parseInt(per.value, 10);
-    store.put(uid(), {
+    edit.put(uid(), {
       n: f.n, cat: f.cat, s: f.s, c: (f.c || []).map(v => v || '').join(','),
       m: mode, by: mode === 'bring' ? bringer : '', q: clampQty(qty.value), u: unit, p: unit === 'pk' && p > 0 ? p : 0, slot: 'pool', done: false, t: Date.now()
-    });
+    }, `adding ${f.n}`);
     toast(mode === 'bring' ? `${f.n} added – ${bringer} is bringing it` : `${f.n} added`);
     if (PASTRY.test(f.n)) pastryParty();
     q.value = '';
@@ -395,7 +493,7 @@
       clearTimeout(timer);
       delete input.dataset.dirty;
       const v = input.value.trim();
-      if (v !== (meals[slot] || '')) { store.setMeal(slot, v); renderList(); }
+      if (v !== (meals[slot] || '')) { edit.setMeal(slot, v, `the ${SLOT_NAME[slot]} meal name`); renderList(); }
     };
     input.addEventListener('input', () => { input.dataset.dirty = '1'; sizeMeal(input); clearTimeout(timer); timer = setTimeout(commit, 600); });
     input.addEventListener('blur', commit);
@@ -461,7 +559,7 @@
         chip.classList.remove('lift');
         hot?.classList.remove('hot');
         if (ev && ev.type === 'pointerup' && hot && items[id] && hot.dataset.slot !== items[id].slot) {
-          store.patch(id, { slot: hot.dataset.slot });
+          edit.patch(id, { slot: hot.dataset.slot }, `moving ${items[id].n}`);
           render();
         }
       }
@@ -509,7 +607,7 @@
     pop.style.left = Math.max(8, Math.min(innerWidth - pw - 8, r.left)) + 'px';
 
     const [qIn, pIn] = pop.querySelectorAll('input');
-    const save = f => { store.patch(id, f); render(); };
+    const save = (f, label) => { edit.patch(id, f, label || `changing ${it.n}`); render(); };
     const popMode = pop.querySelector('.pop-mode'), popBy = pop.querySelector('.pop-by');
     const paintMode = () => {
       const cur = items[id] || it;
@@ -547,11 +645,11 @@
     pop.querySelector('.slots').addEventListener('click', e => {
       const b = e.target.closest('button');
       if (!b) return;
-      save({ slot: b.dataset.slot });
+      save({ slot: b.dataset.slot }, `moving ${it.n}`);
       closePop();
     });
     pop.querySelector('.danger').addEventListener('click', () => {
-      store.del(id);
+      edit.del(id, `removing ${it.n}`);
       closePop();
       render();
       toast(`${it.n} removed`);
@@ -610,7 +708,7 @@
       return;
     }
     $('#list').innerHTML = gs.map(g => `
-      <div class="aisle${g.person ? ' person' : ''}"><div class="aisle-h"><i style="background:${g.cat.c}"></i>${esc(g.cat.n)}${g.person && !g.loose ? ' brings' : ''}<em>${g.rows.length}</em></div>
+      <div class="aisle${g.person ? ' person' : ''}"${g.person && !g.loose ? ` data-p="${esc(g.cat.n)}"` : ''}><div class="aisle-h"><i style="background:${g.cat.c}"></i>${esc(g.cat.n)}${g.person && !g.loose ? ' brings' : ''}<em>${g.rows.length}</em>${g.person && !g.loose && g.rows.length ? `<button type="button" class="dl" title="Save ${esc(g.cat.n)}'s list as a picture"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>Save image</button>` : ''}</div>
       ${g.rows.length ? '' : '<div class="nothing">Nothing to bring yet</div>'}
       ${g.rows.map(r => {
         const i = listRows.push(r) - 1;
@@ -620,11 +718,13 @@
       }).join('')}</div>`).join('');
   }
   $('#list').addEventListener('click', e => {
+    const dl = e.target.closest('.dl');
+    if (dl) { const aisle = dl.closest('.aisle'); saveBringImage(aisle.dataset.p, aisle); return; }
     const row = e.target.closest('.row');
     if (!row) return;
     const r = listRows[+row.dataset.r];
     const done = !r.done;
-    r.ids.forEach(id => store.patch(id, { done }));
+    edit.patch(r.ids, { done }, `${done ? 'ticking off' : 'unticking'} ${r.n}`);
     render();
   });
 
@@ -667,7 +767,8 @@
   whoBody.addEventListener('click', e => {
     const b = e.target.closest('button.yn');
     if (!b) return;
-    store.setWho(b.dataset.k, whoVal(b.dataset.k) === 'Yes' ? 'No' : 'Yes');
+    const [row, d] = b.dataset.k.split('|');
+    edit.setWho(b.dataset.k, whoVal(b.dataset.k) === 'Yes' ? 'No' : 'Yes', `${row} on ${(DAYS.find(x => x[0] === d) || [d, d])[1]}`);
     renderWho();
   });
   function renderWho() {
@@ -710,6 +811,124 @@
       });
       (sheet.querySelector('button.on') || sheet.querySelector('button[data-p]')).focus({ preventScroll: true });
     });
+  }
+
+  /* ---------------- restore from a backup ---------------- */
+  const fmtWhen = iso => {
+    const d = new Date(iso), today = new Date(), yday = new Date(Date.now() - 864e5);
+    const day = d.toDateString() === today.toDateString() ? 'Today' : d.toDateString() === yday.toDateString() ? 'Yesterday'
+      : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    return `${day}, ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  async function openRestore() {
+    const sheet = document.createElement('div');
+    sheet.className = 'bring-sheet';
+    sheet.innerHTML = `<div class="bs-card" role="dialog" aria-modal="true" aria-label="Restore from a backup">
+      <div><div class="bs-title">Restore from a backup</div>
+      <div class="bs-sub">Puts the whole list – food, meal names and who's coming – back to how it was at that time, for everyone. The list as it is now is saved as a backup first, so Undo can switch back.</div></div>
+      <select class="bk-select" aria-label="Backup to restore" disabled><option>Loading backups…</option></select>
+      <div class="bk-info"></div>
+      <button type="button" class="primary bk-go" disabled>Restore this backup</button>
+      <button type="button" class="bs-cancel">Cancel</button></div>`;
+    document.body.appendChild(sheet);
+    const sel = sheet.querySelector('select'), go = sheet.querySelector('.bk-go'), info = sheet.querySelector('.bk-info');
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+    const close = () => { document.removeEventListener('keydown', onKey, true); sheet.classList.add('out'); setTimeout(() => sheet.remove(), 180); };
+    document.addEventListener('keydown', onKey, true);
+    sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('.bs-cancel')) close(); });
+    let list;
+    try { list = await store.backups(); } catch (e) { sel.innerHTML = '<option>Couldn’t load the backups</option>'; info.textContent = 'Check your connection and try again.'; return; }
+    if (!list.length) {
+      sel.innerHTML = '<option>No backups yet</option>';
+      info.textContent = 'The first one is saved automatically the next time anyone changes the list.';
+      return;
+    }
+    sel.innerHTML = list.map((b, i) => `<option value="${esc(b.id)}">${esc(fmtWhen(b.time))} · ${plural(b.items, 'item')}${b.why === 'Before restore' ? ' · before a restore' : i === 0 ? ' · latest' : ''}</option>`).join('');
+    sel.disabled = go.disabled = false;
+    const paint = () => { const b = list[sel.selectedIndex]; info.textContent = `That backup has ${plural(b.items, 'food item')}; the list has ${Object.keys(items).length} now.`; };
+    sel.addEventListener('change', paint);
+    paint();
+    go.addEventListener('click', async () => {
+      const b = list[sel.selectedIndex];
+      sel.disabled = go.disabled = true;
+      go.textContent = 'Restoring…';
+      try {
+        const res = await store.restore(b.id);
+        if (!res) throw new Error('missing');
+        remember(`restoring the ${fmtWhen(b.time)} backup`, [{ t: 'restore', id: res.undo }]);
+        close();
+        closePop();
+        render();
+        toast(`Restored to ${fmtWhen(b.time)} – Undo switches back`);
+      } catch (e) {
+        sel.disabled = go.disabled = false;
+        go.textContent = 'Restore this backup';
+        toast(e.message === 'busy' ? 'Still saving the last change – try again in a moment' : 'Couldn’t restore just now – try again');
+      }
+    });
+  }
+  $('#restoreBtn').addEventListener('click', openRestore);
+
+  /* ---------------- a person's bring list as an image ----------------
+     Drawn on a canvas from what's on screen, then shared (phones: "Save Image") or downloaded. */
+  function bringImage(person, rows, imgs, withIcons) {
+    const S = 2, W = 540, pad = 28, rowH = 56, top = 132, foot = 64;
+    const H = top + rows.length * rowH + foot;
+    const cv = document.createElement('canvas');
+    cv.width = W * S; cv.height = H * S;
+    const x = cv.getContext('2d');
+    x.scale(S, S);
+    const font = (w, px) => `${w} ${px}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    const fit = (text, max) => { if (x.measureText(text).width <= max) return text; while (text && x.measureText(text + '…').width > max) text = text.slice(0, -1); return text + '…'; };
+    const round = (rx, ry, rw, rh, r) => { x.beginPath(); x.moveTo(rx + r, ry); x.arcTo(rx + rw, ry, rx + rw, ry + rh, r); x.arcTo(rx + rw, ry + rh, rx, ry + rh, r); x.arcTo(rx, ry + rh, rx, ry, r); x.arcTo(rx, ry, rx + rw, ry, r); x.closePath(); };
+    x.fillStyle = '#f5f5f7'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#fff'; round(14, 14, W - 28, H - 28, 22); x.fill();
+    const col = BRING_COL[BRINGERS.indexOf(person)] || '#8e8e93';
+    x.fillStyle = col; x.beginPath(); x.arc(pad + 30, 70, 26, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#fff'; x.font = font(700, 24); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(person[0], pad + 30, 71);
+    x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+    x.fillStyle = '#1d1d1f'; x.font = font(700, 26); x.fillText(fit(`${person}'s bring list`, W - pad * 2 - 80), pad + 72, 66);
+    x.fillStyle = '#6e6e73'; x.font = font(500, 15); x.fillText(`${plural(rows.length, 'thing')} to bring for the weekend away`, pad + 72, 90);
+    x.fillStyle = 'rgba(0,0,0,.08)'; x.fillRect(pad, top - 14, W - pad * 2, 1);
+    rows.forEach((r, i) => {
+      const y = top + i * rowH;
+      x.strokeStyle = r.done ? '#34c759' : '#c7c7cc'; x.lineWidth = 1.5; x.fillStyle = '#34c759';
+      x.beginPath(); x.arc(pad + 11, y + 22, 10, 0, Math.PI * 2); if (r.done) x.fill(); else x.stroke();
+      if (r.done) { x.strokeStyle = '#fff'; x.lineWidth = 2; x.beginPath(); x.moveTo(pad + 6, y + 22); x.lineTo(pad + 10, y + 26); x.lineTo(pad + 17, y + 17); x.stroke(); }
+      const tx = withIcons && imgs[i] ? pad + 76 : pad + 36;
+      if (withIcons && imgs[i]) x.drawImage(imgs[i], pad + 32, y + 2, 38, 38);
+      const q = rowQty(r);
+      x.font = font(500, 14); const qw = x.measureText(q).width;
+      x.fillStyle = '#6e6e73'; x.textAlign = 'right'; x.fillText(q, W - pad, y + 22); x.textAlign = 'left';
+      x.fillStyle = r.done ? '#a1a1a6' : '#1d1d1f'; x.font = font(600, 17); x.fillText(fit(r.n, W - pad - tx - qw - 16), tx, y + 20);
+      x.fillStyle = '#a1a1a6'; x.font = font(400, 12.5); x.fillText(fit(rowWhen(r), W - pad - tx - qw - 16), tx, y + 38);
+    });
+    x.fillStyle = '#a1a1a6'; x.font = font(400, 12);
+    x.fillText(`Saved ${new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })} · grantjd1.github.io/family-weekend-food`, pad, H - 34);
+    return cv;
+  }
+  function saveBringImage(person, aisle) {
+    const g = groups().find(x => x.person && !x.loose && x.cat.n === person);
+    if (!g || !g.rows.length) return;
+    const imgs = [...aisle.querySelectorAll('.row img')];
+    let url;
+    try { url = bringImage(person, g.rows, imgs, true).toDataURL('image/png'); }
+    catch (e) { url = bringImage(person, g.rows, imgs, false).toDataURL('image/png'); } // some browsers won't export pictures; send it without them
+    const bin = atob(url.split(',')[1]), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const file = new File([bytes], `${person}-bring-list.png`, { type: 'image/png' });
+    if (matchMedia('(pointer: coarse)').matches && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: `${person}'s bring list` }).catch(() => {}); // cancelling the share sheet is fine
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast(`Saved ${file.name}`);
   }
 
   /* ---------------- puff pastry alert ----------------

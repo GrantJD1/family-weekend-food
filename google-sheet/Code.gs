@@ -33,7 +33,15 @@ const WHO_PEOPLE = [['Dad', 'Rita', 'Rob', 'Faye', 'Emilia', 'Anwen', 'Benji'], 
 const WHO_DEFAULT = { 'Breakfast|fri': 'No', 'Lunch|fri': 'No' }; // everything else starts as Yes
 const WHO_ROWS = WHO_MEALS.concat(WHO_PEOPLE[0], WHO_PEOPLE[1]);
 
-function doGet() {
+// Restore points: the whole list is copied into the "Backups" tab at most once an hour, just before
+// someone changes it, and again before any restore. Backups are only ever added, never removed.
+const BACKUP_TAB = 'Backups';
+const BACKUP_HEAD = ['Saved', 'Why', 'Food items', 'id', 'data'];
+const BACKUP_EVERY_MS = 60 * 60 * 1000;
+const CHUNK = 45000; // a cell holds 50,000 characters, so big lists are split across cells
+
+function doGet(e) {
+  if (e && e.parameter && e.parameter.list === 'backups') return out_({ backups: listBackups_() });
   return out_(load_());
 }
 
@@ -41,14 +49,63 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    const state = load_();
+    let state = load_();
     const ops = JSON.parse(e.postData.contents).ops || [];
-    ops.forEach(op => apply_(state, op));
+    if (!ops.some(op => op.t === 'restore')) autoBackup_(state);
+    ops.forEach(op => { if (op.t === 'restore') state = restore_(state, op.id); else apply_(state, op); });
     save_(state);
     return out_(state);
   } finally {
     lock.releaseLock();
   }
+}
+
+function backup_(s, why) {
+  const json = JSON.stringify({ items: s.items, meals: s.meals, who: s.who });
+  const parts = [];
+  // '~' in front stops a chunk ever being read as a formula or a number
+  for (let i = 0; i < json.length; i += CHUNK) parts.push('~' + json.slice(i, i + CHUNK));
+  const id = 'b' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  tab_(BACKUP_TAB, BACKUP_HEAD).appendRow([new Date(), why, Object.keys(s.items).length, id].concat(parts));
+  return id;
+}
+
+function autoBackup_(s) {
+  const sh = tab_(BACKUP_TAB, BACKUP_HEAD);
+  const last = sh.getLastRow();
+  if (last >= 2) {
+    const t = sh.getRange(last, 1).getValue();
+    if (t instanceof Date && Date.now() - t.getTime() < BACKUP_EVERY_MS) return;
+  }
+  backup_(s, 'Automatic');
+}
+
+function listBackups_() {
+  const sh = tab_(BACKUP_TAB, BACKUP_HEAD);
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, 4).getValues()
+    .filter(r => r[3])
+    .map(r => ({ id: String(r[3]), time: r[0] instanceof Date ? r[0].toISOString() : String(r[0]), why: String(r[1]), items: Number(r[2]) || 0 }))
+    .reverse();
+}
+
+function readBackup_(id) {
+  const sh = tab_(BACKUP_TAB, BACKUP_HEAD);
+  const last = sh.getLastRow();
+  if (last < 2) return null;
+  const i = sh.getRange(2, 4, last - 1, 1).getValues().findIndex(r => String(r[0]) === String(id));
+  if (i < 0) return null;
+  const row = sh.getRange(i + 2, 1, 1, sh.getLastColumn()).getValues()[0];
+  try { return JSON.parse(row.slice(4).filter(v => v !== '').map(v => String(v).slice(1)).join('')); } catch (err) { return null; }
+}
+
+// put the whole list back as it was in a backup; the current list is backed up first so this can be undone
+function restore_(s, id) {
+  const b = readBackup_(id);
+  if (!b || !b.items) return s;
+  const undo = backup_(s, 'Before restore');
+  return { items: b.items, meals: b.meals || {}, who: b.who || s.who, restored: { from: String(id), undo } };
 }
 
 function apply_(s, op) {
